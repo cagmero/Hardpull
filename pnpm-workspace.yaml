@@ -1,0 +1,7 @@
+packages:
+  - api
+  - mcp
+  - console
+  - demo-lenders
+  - sdk-node
+  - packages/*

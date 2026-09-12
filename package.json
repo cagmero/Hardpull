@@ -1,0 +1,11 @@
+{
+  "name": "hardpull",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Confidential exposure registry for onchain credit — monorepo root",
+  "license": "MIT",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20"
+  }
+}

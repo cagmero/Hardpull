@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Foundry
+contracts/cache/
+contracts/out/
+contracts/broadcast/*/31337/
+contracts/broadcast/*/dry-run/
+
+# Go
+cre/bin/
+
+# Subgraph
+subgraph/generated/
+subgraph/build/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Turbo/misc
+.turbo/
+coverage/

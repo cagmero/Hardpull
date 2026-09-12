@@ -1,0 +1,6 @@
+{
+  "authorizedPullerKeys": ["0xYourHardpullApiSignerAddress"],
+  "workflowPrivateKeySecretId": "hardpull-x25519-private-key",
+  "workflowPublicKeyHex": "0xYourWorkflowX25519PublicKey",
+  "attestationSignerSecretId": "hardpull-attestation-signer-key"
+}

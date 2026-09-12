@@ -1,0 +1,29 @@
+name: cre
+
+on:
+  push:
+    paths: ["cre/**", ".github/workflows/cre.yml"]
+  pull_request:
+    paths: ["cre/**", ".github/workflows/cre.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cre
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+
+      - name: Test business logic
+        run: go test ./workflow/... -v
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build WASM workflow binary
+        run: GOOS=wasip1 GOARCH=wasm go build -o workflow.wasm .

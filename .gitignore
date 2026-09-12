@@ -23,6 +23,7 @@ contracts/broadcast/*/dry-run/
 
 # Go
 cre/bin/
+cre/*.wasm
 
 # Subgraph
 subgraph/generated/

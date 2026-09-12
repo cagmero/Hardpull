@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../db/pool.js";
-import { requireBearerAuth } from "../middleware/auth.js";
 import { dispatchWebhook } from "../lib/webhooks.js";
+import { buildConsentGrantMessage, buildConsentRevokeMessage, verifySubjectSignature, SubjectAuthError } from "../lib/subjectAuth.js";
 
 export const consent = new Hono();
 
@@ -12,20 +12,35 @@ export const consent = new Hono();
 // contracts the way SubjectRegistry/FurnisherRegistry were. Postgres is the source of truth for
 // v1; T-071 adds an onchain mirror write alongside this once that integration lands, the same
 // pattern subjects.ts and furnish.ts already use for their contracts.
+//
+// Auth here is the subject's wallet signature (see lib/subjectAuth.ts), NOT a furnisher bearer
+// token -- granting consent is something the borrower does, not the lender.
 const grantSchema = z.object({
   subjectId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
   pullerId: z.string(),
   expiresAt: z.string().datetime(),
   maxPulls: z.number().int().positive(),
   purpose: z.string().optional(),
+  timestamp: z.number().int(),
+  signature: z.string().regex(/^0x[a-fA-F0-9]+$/),
 });
 
-consent.post("/", requireBearerAuth, async (c) => {
+consent.post("/", async (c) => {
   const parsed = grantSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {
     return c.json({ error: "INVALID_REQUEST", message: parsed.error.message }, 400);
   }
-  const { subjectId, pullerId, expiresAt, maxPulls, purpose } = parsed.data;
+  const { subjectId, pullerId, expiresAt, maxPulls, purpose, timestamp, signature } = parsed.data;
+
+  try {
+    const message = buildConsentGrantMessage({ subjectId, pullerId, expiresAt, maxPulls, timestamp });
+    await verifySubjectSignature(subjectId, message, signature as `0x${string}`, timestamp);
+  } catch (err) {
+    if (err instanceof SubjectAuthError) {
+      return c.json({ error: "SUBJECT_AUTH_FAILED", message: err.message }, 401);
+    }
+    return c.json({ error: "SUBJECT_AUTH_FAILED", message: "Signature verification failed" }, 401);
+  }
 
   const result = await pool.query<{ id: string }>(
     `insert into consent_grants (subject_id, puller_id, expires_at, max_pulls, purpose)
@@ -38,15 +53,37 @@ consent.post("/", requireBearerAuth, async (c) => {
   return c.json({ grantId: result.rows[0].id, subjectId, pullerId, expiresAt, maxPulls }, 201);
 });
 
-consent.delete("/:grantId", requireBearerAuth, async (c) => {
+const revokeSchema = z.object({
+  subjectId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+  timestamp: z.number().int(),
+  signature: z.string().regex(/^0x[a-fA-F0-9]+$/),
+});
+
+consent.delete("/:grantId", async (c) => {
   const grantId = c.req.param("grantId");
+  const parsed = revokeSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: "INVALID_REQUEST", message: parsed.error.message }, 400);
+  }
+  const { subjectId, timestamp, signature } = parsed.data;
+
+  try {
+    const message = buildConsentRevokeMessage({ grantId, timestamp });
+    await verifySubjectSignature(subjectId, message, signature as `0x${string}`, timestamp);
+  } catch (err) {
+    if (err instanceof SubjectAuthError) {
+      return c.json({ error: "SUBJECT_AUTH_FAILED", message: err.message }, 401);
+    }
+    return c.json({ error: "SUBJECT_AUTH_FAILED", message: "Signature verification failed" }, 401);
+  }
+
   const result = await pool.query<{ id: string; subject_id: string; puller_id: string }>(
-    "update consent_grants set revoked_at = now() where id = $1 and revoked_at is null returning id, subject_id, puller_id",
-    [grantId],
+    "update consent_grants set revoked_at = now() where id = $1 and subject_id = $2 and revoked_at is null returning id, subject_id, puller_id",
+    [grantId, subjectId],
   );
   const grant = result.rows[0];
   if (!grant) {
-    return c.json({ error: "GRANT_NOT_FOUND", message: "No active grant with this id" }, 404);
+    return c.json({ error: "GRANT_NOT_FOUND", message: "No active grant with this id for this subject" }, 404);
   }
 
   dispatchWebhook(grant.puller_id, "consent.revoked", { subjectId: grant.subject_id, pullerId: grant.puller_id });

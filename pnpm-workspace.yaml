@@ -2,7 +2,7 @@ packages:
   - api
   - mcp
   - console
-  - demo-lenders
+  - demo-lenders/*
   - sdk-node
   - subgraph
   - packages/*

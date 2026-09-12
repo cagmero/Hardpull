@@ -17,12 +17,23 @@ positions. All computation happens in the CRE confidential workflow (see [`../cr
 
 ## Setup
 
+`lib/` is gitignored; dependency versions are pinned in `foundry.lock`. Restore them with:
+
 ```bash
-forge install   # pulls forge-std (lib/ is gitignored)
+forge install foundry-rs/forge-std --no-commit
+forge install OpenZeppelin/openzeppelin-contracts@v5.1.0 --no-commit
 forge build
 forge test
 ```
 
-## Deployments
+## Deploy
 
-Sepolia addresses will be written to `../docs/deployments.json` once deployed (T-026).
+```bash
+DEPLOYER_PRIVATE_KEY=0x... \
+REGISTRAR_ADDRESS=0x... \
+CRE_SIGNER_ADDRESS=0x... \
+forge script script/Deploy.s.sol:Deploy --rpc-url $SEPOLIA_RPC_URL --broadcast --verify
+```
+
+Deploys all five contracts in dependency order and writes addresses to `../docs/deployments.json`.
+Smoke-tested against a local Anvil node; not yet run against Sepolia (needs a funded deployer key).

@@ -1,0 +1,25 @@
+{
+  "name": "@hardpull/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Subgraph MCP server for Hardpull credit-file queries",
+  "type": "module",
+  "bin": {
+    "hardpull-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@hardpull/types": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.1",
+    "@types/node": "^22.7.5"
+  }
+}

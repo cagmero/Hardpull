@@ -1,7 +1,13 @@
 [
   {
     "type": "constructor",
-    "inputs": [],
+    "inputs": [
+      {
+        "name": "_registrar",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "stateMutability": "nonpayable"
   },
   {
@@ -130,10 +136,28 @@
         "name": "publicKey",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "operator",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registrar",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -148,6 +172,19 @@
         "name": "newPublicKey",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setRegistrar",
+    "inputs": [
+      {
+        "name": "newRegistrar",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -237,18 +274,31 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "RegistrarUpdated",
+    "inputs": [
+      {
+        "name": "newRegistrar",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "AlreadyRegistered",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "NotOperator",
+    "name": "NotOwner",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "NotOwner",
+    "name": "NotRegistrar",
     "inputs": []
   },
   {
@@ -259,6 +309,11 @@
   {
     "type": "error",
     "name": "UnknownFurnisher",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroAddress",
     "inputs": []
   },
   {

@@ -1,6 +1,8 @@
 import { recoverMessageAddress } from "viem";
 import { pool } from "../db/pool.js";
 
+export { buildConsentGrantMessage, buildConsentRevokeMessage } from "@hardpull/types";
+
 // Consent is a subject (borrower) action, not a furnisher action (docs/spec.md #6.3: "Subject
 // grants a puller time-boxed read access") -- it must never be gated by a furnisher's OAuth2
 // bearer token. Subjects don't hold API client credentials at all; they authenticate by signing
@@ -9,27 +11,6 @@ import { pool } from "../db/pool.js";
 // tracking -- a real deployment should track consumed (subjectId, timestamp) pairs to close the
 // replay window entirely.
 const MAX_CLOCK_SKEW_MS = 5 * 60 * 1000;
-
-export function buildConsentGrantMessage(params: {
-  subjectId: string;
-  pullerId: string;
-  expiresAt: string;
-  maxPulls: number;
-  timestamp: number;
-}): string {
-  return [
-    "Hardpull consent grant",
-    `subjectId: ${params.subjectId}`,
-    `pullerId: ${params.pullerId}`,
-    `expiresAt: ${params.expiresAt}`,
-    `maxPulls: ${params.maxPulls}`,
-    `timestamp: ${params.timestamp}`,
-  ].join("\n");
-}
-
-export function buildConsentRevokeMessage(params: { grantId: string; timestamp: number }): string {
-  return ["Hardpull consent revoke", `grantId: ${params.grantId}`, `timestamp: ${params.timestamp}`].join("\n");
-}
 
 export class SubjectAuthError extends Error {}
 

@@ -22,7 +22,11 @@ against the actual `github.com/smartcontractkit/cre-sdk-go` source (v1.19.0) and
     rejects mismatches without failing the whole batch
   - `sealedbox.go` — a real implementation of libsodium's `crypto_box_seal` (X25519 + XSalsa20-
     Poly1305 + BLAKE2b nonce derivation), matching `docs/architecture.md` #3.3's encryption
-    scheme exactly. Round-trip, wrong-key, and tampered-ciphertext cases are all tested.
+    scheme exactly. Round-trip, wrong-key, and tampered-ciphertext cases are all tested, and
+    `cmd/interop` proves it's byte-for-byte compatible with the TypeScript furnisher-side twin
+    in `packages/types/src/sealedbox.ts` -- a message sealed by one was opened by the other, in
+    both directions, with a real generated keypair. This is the check that actually matters:
+    two independent implementations of the same spec can silently diverge without it.
   - `types.go` — `Verdict` has no field for furnisher identity, exact principal, rate, maturity,
     or prior puller identity (T-042). `TestVerdict_NeverExposesRestrictedFields` inspects the
     struct via reflection and fails the build if anyone ever adds one.

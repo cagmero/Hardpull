@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { pool } from "../db/pool.js";
 import { dispatchWebhook } from "../lib/webhooks.js";
-import { buildConsentGrantMessage, buildConsentRevokeMessage, verifySubjectSignature, SubjectAuthError } from "../lib/subjectAuth.js";
+import { buildConsentGrantMessage, buildConsentRevokeMessage } from "@hardpull/types";
+import { verifySubjectSignature, SubjectAuthError } from "../lib/subjectAuth.js";
 
 export const consent = new Hono();
 

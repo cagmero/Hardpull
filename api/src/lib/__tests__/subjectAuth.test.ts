@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { buildConsentGrantMessage } from "@hardpull/types";
 
 const hasDb = !!process.env.DATABASE_URL;
 
 describe.skipIf(!hasDb)("subjectAuth (integration)", () => {
   let pool: import("pg").Pool;
-  let buildConsentGrantMessage: typeof import("../subjectAuth.js").buildConsentGrantMessage;
   let verifySubjectSignature: typeof import("../subjectAuth.js").verifySubjectSignature;
   let SubjectAuthError: typeof import("../subjectAuth.js").SubjectAuthError;
 
@@ -14,7 +14,7 @@ describe.skipIf(!hasDb)("subjectAuth (integration)", () => {
 
   beforeAll(async () => {
     ({ pool } = await import("../../db/pool.js"));
-    ({ buildConsentGrantMessage, verifySubjectSignature, SubjectAuthError } = await import("../subjectAuth.js"));
+    ({ verifySubjectSignature, SubjectAuthError } = await import("../subjectAuth.js"));
     await pool.query("insert into subjects (subject_id, first_seen_at) values ($1, now())", [subjectId]);
     await pool.query("insert into wallets (wallet, subject_id) values ($1, $2)", [account.address.toLowerCase(), subjectId]);
   });

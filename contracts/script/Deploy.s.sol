@@ -27,7 +27,7 @@ contract Deploy is Script {
         vm.startBroadcast(deployerKey);
 
         SubjectRegistry subjectRegistry = new SubjectRegistry(registrar);
-        FurnisherRegistry furnisherRegistry = new FurnisherRegistry();
+        FurnisherRegistry furnisherRegistry = new FurnisherRegistry(registrar);
         ReciprocityLedger reciprocityLedger = new ReciprocityLedger();
         ExposureCommitments exposureCommitments =
             new ExposureCommitments(address(subjectRegistry), address(furnisherRegistry), address(reciprocityLedger));

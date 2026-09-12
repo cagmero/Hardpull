@@ -38,7 +38,7 @@ furnishers.post("/", async (c) => {
       address: FurnisherRegistry,
       abi: FurnisherRegistryAbi,
       functionName: "register",
-      args: [furnisherId, ensNode, publicKey],
+      args: [furnisherId, ensNode, publicKey, operatorAddress],
       account: wallet.account!,
     });
   } catch (err) {

@@ -21,17 +21,16 @@ contract ExposureCommitmentsTest is Test {
 
     function setUp() public {
         subjectRegistry = new SubjectRegistry(registrar);
-        furnisherRegistry = new FurnisherRegistry();
+        furnisherRegistry = new FurnisherRegistry(registrar);
         reciprocityLedger = new ReciprocityLedger();
         commitments =
             new ExposureCommitments(address(subjectRegistry), address(furnisherRegistry), address(reciprocityLedger));
         reciprocityLedger.setExposureCommitments(address(commitments));
 
-        vm.prank(registrar);
+        vm.startPrank(registrar);
         subjectId = subjectRegistry.registerSubject(keccak256("nullifier"), address(0x1));
-
-        vm.prank(lender);
-        furnisherRegistry.register(furnisherId, bytes32(0), keccak256("pubkey"));
+        furnisherRegistry.register(furnisherId, bytes32(0), keccak256("pubkey"), lender);
+        vm.stopPrank();
     }
 
     function test_writeCommitment_startsAtVersionOne() public {

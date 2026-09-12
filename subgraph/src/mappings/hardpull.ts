@@ -31,7 +31,10 @@ export function handleCommitmentWritten(event: CommitmentWritten): void {
   let furnisherId = event.params.furnisherId.toHexString();
   getOrCreateFurnisher(furnisherId, event.block.timestamp);
 
-  let id = subjectId + "-" + furnisherId + "-" + event.params.recordId.toHexString();
+  // Keyed including version, not just the (subject, furnisher, record) triple -- each status
+  // transition is its own append-only version onchain (docs/spec.md #6.2) and must stay
+  // queryable, not be overwritten by the next transition's write.
+  let id = subjectId + "-" + furnisherId + "-" + event.params.recordId.toHexString() + "-" + event.params.version.toString();
   let record = new FurnishedCommitment(id);
   record.subject = subjectId;
   record.furnisher = furnisherId;

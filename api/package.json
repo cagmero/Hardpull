@@ -5,19 +5,32 @@
   "description": "The Hardpull bureau API",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --env-file=.env src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node --env-file=.env dist/index.js",
+    "migrate:up": "node-pg-migrate up -m src/db/migrations --envPath .env",
+    "migrate:down": "node-pg-migrate down -m src/db/migrations --envPath .env",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hardpull/types": "workspace:*",
     "hono": "^4.6.9",
     "@hono/node-server": "^1.13.2",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "pg": "^8.13.1",
+    "ioredis": "^5.4.1",
+    "viem": "^2.21.19",
+    "jose": "^5.9.6",
+    "@x402/core": "^2.25.0",
+    "@x402/hedera": "^2.25.0",
+    "@hiero-ledger/sdk": "^2.85.0"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
     "tsx": "^4.19.1",
-    "@types/node": "^22.7.5"
+    "@types/node": "^22.7.5",
+    "@types/pg": "^8.11.10",
+    "node-pg-migrate": "^7.9.1",
+    "vitest": "^2.1.4"
   }
 }

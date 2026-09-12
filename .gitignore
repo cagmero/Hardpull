@@ -17,6 +17,7 @@ out/
 # Foundry
 contracts/cache/
 contracts/out/
+contracts/lib/
 contracts/broadcast/*/31337/
 contracts/broadcast/*/dry-run/
 

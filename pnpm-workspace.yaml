@@ -4,4 +4,5 @@ packages:
   - console
   - demo-lenders
   - sdk-node
+  - subgraph
   - packages/*

@@ -1,0 +1,74 @@
+specVersion: 1.0.0
+description: Hardpull normalized credit schema -- public protocol ingestion (Aave v3, Morpho Blue, Maple)
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: AaveV3Pool
+    network: mainnet
+    source:
+      address: "0x0000000000000000000000000000000000000000" # TODO: Aave v3 Pool proxy (T-031)
+      abi: AaveV3Pool
+      startBlock: 0 # TODO
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - CreditPosition
+        - Subject
+      abis:
+        - name: AaveV3Pool
+          file: ./abis/AaveV3Pool.json
+      eventHandlers:
+        - event: Borrow(indexed address,address,indexed address,uint256,uint8,uint256,indexed uint16)
+          handler: handleAaveBorrow
+        - event: Repay(indexed address,indexed address,indexed address,uint256,bool)
+          handler: handleAaveRepay
+        - event: LiquidationCall(indexed address,indexed address,indexed address,uint256,uint256,address,bool)
+          handler: handleAaveLiquidation
+      file: ./src/mappings/aave.ts
+  - kind: ethereum
+    name: MorphoBlue
+    network: mainnet
+    source:
+      address: "0x0000000000000000000000000000000000000000" # TODO: Morpho Blue singleton (T-032)
+      abi: MorphoBlue
+      startBlock: 0 # TODO
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - CreditPosition
+        - Subject
+      abis:
+        - name: MorphoBlue
+          file: ./abis/MorphoBlue.json
+      eventHandlers:
+        - event: Borrow(indexed bytes32,indexed address,indexed address,address,uint256,uint256)
+          handler: handleMorphoBorrow
+        - event: Repay(indexed bytes32,indexed address,indexed address,uint256,uint256)
+          handler: handleMorphoRepay
+        - event: Liquidate(indexed bytes32,indexed address,indexed address,uint256,uint256,uint256,uint256,uint256)
+          handler: handleMorphoLiquidate
+      file: ./src/mappings/morpho.ts
+  - kind: ethereum
+    name: MapleLoanManager
+    network: mainnet
+    source:
+      address: "0x0000000000000000000000000000000000000000" # TODO: Maple loan factory (T-033)
+      abi: MapleLoan
+      startBlock: 0 # TODO
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - CreditPosition
+        - Subject
+      abis:
+        - name: MapleLoan
+          file: ./abis/MapleLoan.json
+      eventHandlers: [] # TODO: origination + repayment events, partial ABI coverage acceptable (T-033)
+      file: ./src/mappings/maple.ts

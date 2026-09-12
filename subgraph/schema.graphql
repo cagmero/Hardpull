@@ -1,0 +1,54 @@
+# Normalized cross-protocol credit schema. See docs/architecture.md #2.4.
+# One shape across Aave v3, Morpho Blue, Maple (mainnet) and Hardpull contracts (Sepolia).
+
+type CreditPosition @entity {
+  id: ID!
+  subject: Subject!
+  protocol: Protocol! # AAVE_V3 | MORPHO_BLUE | MAPLE | HARDPULL_FURNISHED
+  principal: BigInt!
+  currency: Bytes!
+  collateralValue: BigInt # null for uncollateralized
+  originatedAt: BigInt!
+  maturityAt: BigInt
+  status: PositionStatus! # ACTIVE | REPAID | DEFAULTED | LIQUIDATED | CLOSED
+  isPublic: Boolean!
+}
+
+type Subject @entity {
+  id: ID! # subjectId
+  wallets: [Bytes!]!
+  positions: [CreditPosition!]! @derivedFrom(field: "subject")
+  inquiries: [Inquiry!]! @derivedFrom(field: "subject")
+  firstSeenAt: BigInt!
+}
+
+type Inquiry @entity {
+  id: ID!
+  subject: Subject!
+  pullerHash: Bytes! # hashed -- puller identity is never exposed
+  verdict: String!
+  occurredAt: BigInt!
+}
+
+type Furnisher @entity {
+  id: ID!
+  ensName: String
+  freshRecordCount: Int!
+  pullAllowance: Int!
+  standingUpdatedAt: BigInt!
+}
+
+enum Protocol {
+  AAVE_V3
+  MORPHO_BLUE
+  MAPLE
+  HARDPULL_FURNISHED
+}
+
+enum PositionStatus {
+  ACTIVE
+  REPAID
+  DEFAULTED
+  LIQUIDATED
+  CLOSED
+}

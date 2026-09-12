@@ -1,0 +1,18 @@
+{
+  "name": "@hardpull/subgraph",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Normalized cross-protocol credit subgraph",
+  "scripts": {
+    "codegen:mainnet": "graph codegen subgraph.mainnet.yaml",
+    "build:mainnet": "graph build subgraph.mainnet.yaml",
+    "deploy:mainnet": "graph deploy --studio hardpull-mainnet subgraph.mainnet.yaml",
+    "codegen:sepolia": "graph codegen subgraph.sepolia.yaml",
+    "build:sepolia": "graph build subgraph.sepolia.yaml",
+    "deploy:sepolia": "graph deploy --studio hardpull-sepolia subgraph.sepolia.yaml"
+  },
+  "devDependencies": {
+    "@graphprotocol/graph-cli": "^0.97.1",
+    "@graphprotocol/graph-ts": "^0.35.1"
+  }
+}

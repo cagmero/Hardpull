@@ -46,20 +46,42 @@ dataSources:
         - name: MorphoBlue
           file: ./abis/MorphoBlue.json
       eventHandlers:
-        - event: Borrow(indexed bytes32,indexed address,indexed address,address,uint256,uint256)
+        - event: Borrow(indexed bytes32,address,indexed address,indexed address,uint256,uint256)
           handler: handleMorphoBorrow
         - event: Repay(indexed bytes32,indexed address,indexed address,uint256,uint256)
           handler: handleMorphoRepay
         - event: Liquidate(indexed bytes32,indexed address,indexed address,uint256,uint256,uint256,uint256,uint256)
           handler: handleMorphoLiquidate
       file: ./src/mappings/morpho.ts
+  # Each Maple loan is its own proxy contract deployed by the factory -- there is no single
+  # fixed loan address to index. We listen to the factory's InstanceDeployed event and spin up
+  # a MapleLoan template data source per loan (docs/plan.md T-033).
   - kind: ethereum
-    name: MapleLoanManager
+    name: MapleLoanFactory
     network: mainnet
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: Maple loan factory (T-033)
-      abi: MapleLoan
+      address: "0x0000000000000000000000000000000000000000" # TODO: fixed-term-loan-manager factory (T-033)
+      abi: MapleLoanFactory
       startBlock: 0 # TODO
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - CreditPosition
+      abis:
+        - name: MapleLoanFactory
+          file: ./abis/MapleLoanFactory.json
+      eventHandlers:
+        - event: InstanceDeployed(indexed uint256,indexed address,bytes)
+          handler: handleMapleLoanDeployed
+      file: ./src/mappings/maple.ts
+templates:
+  - kind: ethereum
+    name: MapleLoan
+    network: mainnet
+    source:
+      abi: MapleLoan
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -70,5 +92,11 @@ dataSources:
       abis:
         - name: MapleLoan
           file: ./abis/MapleLoan.json
-      eventHandlers: [] # TODO: origination + repayment events, partial ABI coverage acceptable (T-033)
+      eventHandlers:
+        - event: Funded(indexed address,uint256,uint256)
+          handler: handleMapleFunded
+        - event: PaymentMade(uint256,uint256,uint256)
+          handler: handleMaplePaymentMade
+        - event: LoanClosed(uint256,uint256,uint256)
+          handler: handleMapleLoanClosed
       file: ./src/mappings/maple.ts

@@ -1,0 +1,46 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "lender_", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "amount_", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "nextPaymentDueDate_", "type": "uint256" }
+    ],
+    "name": "Funded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": false, "internalType": "uint256", "name": "principalPaid_", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "interestPaid_", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "fees_", "type": "uint256" }
+    ],
+    "name": "PaymentMade",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": false, "internalType": "uint256", "name": "principalPaid_", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "interestPaid_", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "feesPaid_", "type": "uint256" }
+    ],
+    "name": "LoanClosed",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "borrower",
+    "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "principal",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

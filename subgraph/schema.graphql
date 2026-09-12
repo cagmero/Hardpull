@@ -1,7 +1,7 @@
 # Normalized cross-protocol credit schema. See docs/architecture.md #2.4.
 # One shape across Aave v3, Morpho Blue, Maple (mainnet) and Hardpull contracts (Sepolia).
 
-type CreditPosition @entity {
+type CreditPosition @entity(immutable: false) {
   id: ID!
   subject: Subject!
   protocol: Protocol! # AAVE_V3 | MORPHO_BLUE | MAPLE | HARDPULL_FURNISHED
@@ -14,15 +14,19 @@ type CreditPosition @entity {
   isPublic: Boolean!
 }
 
-type Subject @entity {
-  id: ID! # subjectId
+type Subject @entity(immutable: false) {
+  # For a Hardpull-furnished position this is the subjectId. For a public-protocol position
+  # there is no World ID binding at the protocol level, so this is the borrower's wallet
+  # address instead -- the API joins wallet -> subjectId via SubjectRegistry at query time
+  # (docs/architecture.md #2.4 is refined here the same way the two-manifest split is).
+  id: ID!
   wallets: [Bytes!]!
   positions: [CreditPosition!]! @derivedFrom(field: "subject")
   inquiries: [Inquiry!]! @derivedFrom(field: "subject")
   firstSeenAt: BigInt!
 }
 
-type Inquiry @entity {
+type Inquiry @entity(immutable: true) {
   id: ID!
   subject: Subject!
   pullerHash: Bytes! # hashed -- puller identity is never exposed
@@ -30,12 +34,25 @@ type Inquiry @entity {
   occurredAt: BigInt!
 }
 
-type Furnisher @entity {
+type Furnisher @entity(immutable: false) {
   id: ID!
   ensName: String
   freshRecordCount: Int!
   pullAllowance: Int!
   standingUpdatedAt: BigInt!
+}
+
+# Metadata about a Hardpull-furnished commitment, indexed from ExposureCommitments on Sepolia.
+# Deliberately has no principal/currency/terms field: the subgraph only ever sees
+# keccak256(ciphertext), never the plaintext behind it (docs/architecture.md #3.3). This proves
+# a furnisher furnished *something* about a subject at a given time -- not what.
+type FurnishedCommitment @entity(immutable: false) {
+  id: ID! # subjectId-furnisherId-recordId
+  subject: Subject!
+  furnisher: Furnisher!
+  commitment: Bytes!
+  version: BigInt!
+  updatedAt: BigInt!
 }
 
 enum Protocol {

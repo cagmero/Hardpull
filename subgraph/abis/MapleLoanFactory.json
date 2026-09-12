@@ -1,0 +1,12 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "version_", "type": "uint256" },
+      { "indexed": true, "internalType": "address", "name": "instance_", "type": "address" },
+      { "indexed": false, "internalType": "bytes", "name": "initializationArguments_", "type": "bytes" }
+    ],
+    "name": "InstanceDeployed",
+    "type": "event"
+  }
+]

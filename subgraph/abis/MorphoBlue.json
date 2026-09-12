@@ -1,0 +1,62 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "Id", "name": "id", "type": "bytes32" },
+      { "indexed": false, "internalType": "address", "name": "caller", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "onBehalf", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "receiver", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "assets", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "shares", "type": "uint256" }
+    ],
+    "name": "Borrow",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "Id", "name": "id", "type": "bytes32" },
+      { "indexed": true, "internalType": "address", "name": "caller", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "onBehalf", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "assets", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "shares", "type": "uint256" }
+    ],
+    "name": "Repay",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "Id", "name": "id", "type": "bytes32" },
+      { "indexed": true, "internalType": "address", "name": "caller", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "borrower", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "repaidAssets", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "repaidShares", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "seizedAssets", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "badDebtAssets", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "badDebtShares", "type": "uint256" }
+    ],
+    "name": "Liquidate",
+    "type": "event"
+  },
+  {
+    "inputs": [{ "internalType": "Id", "name": "id", "type": "bytes32" }],
+    "name": "idToMarketParams",
+    "outputs": [
+      {
+        "components": [
+          { "internalType": "address", "name": "loanToken", "type": "address" },
+          { "internalType": "address", "name": "collateralToken", "type": "address" },
+          { "internalType": "address", "name": "oracle", "type": "address" },
+          { "internalType": "address", "name": "irm", "type": "address" },
+          { "internalType": "uint256", "name": "lltv", "type": "uint256" }
+        ],
+        "internalType": "struct MarketParams",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

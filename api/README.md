@@ -69,9 +69,15 @@ schedules a retry with an incremented `attempt_count` when the receiver is unrea
 
 - **World ID** (`src/lib/worldid.ts`): the real Worldcoin verify endpoint is called correctly,
   but needs `WORLD_ID_APP_ID`/`WORLD_ID_ACTION_ID` from a registered Developer Portal app.
-- **CRE workflow request signing** (`src/lib/creClient.ts`): CRE HTTP triggers authenticate
-  callers via signed requests against the workflow's `AuthorizedKeys`. Nothing to sign against or
-  verify locally without a deployed workflow — see `cre/README.md`.
+- **CRE workflow request signing** (`src/lib/creJwt.ts`): implemented as a verified port of the
+  real CRE TypeScript SDK's client (`cre-sdk-typescript`'s `create-jwt.ts`/`utils.ts`, fetched and
+  checked line-by-line, not guessed) — an ECDSA-signed JWT whose payload digest commits to the
+  canonical (lexicographically key-sorted) JSON-RPC request body. A test confirms the signature
+  genuinely recovers to the signing key's address. What's *not* confirmed: whether the CRE
+  gateway's own canonical-JSON digest computation matches `json-stable-stringify`'s output
+  byte-for-byte, and the exact response envelope shape (the reference client returns the parsed
+  body without unwrapping a `.result` field, so `creClient.ts` handles both shapes defensively).
+  Both need a live deployed workflow to actually confirm — see `cre/README.md`.
 - **ENSv2 Enhanced Access Control** (`src/lib/ensEac.ts`): the `grantRoles`/`revokeRoles`/
   `hasRoles` calls are real, verified against the actual `IEnhancedAccessControl.sol` interface
   on `github.com/ensdomains/contracts-v2` (not guessed), and wired into `consent.ts` as a

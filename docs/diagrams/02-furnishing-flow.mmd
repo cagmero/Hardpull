@@ -1,0 +1,13 @@
+sequenceDiagram
+    participant L as Lender
+    participant A as Hardpull API
+    participant P as Postgres
+    participant C as ExposureCommitments
+
+    L->>A: POST /v1/furnish (sealed box, Idempotency-Key)
+    A->>A: verify auth + HMAC + idempotency
+    A->>P: store ciphertext, return recordId
+    A->>C: writeCommitment(subjectId, furnisherId, keccak256(ct))
+    C-->>A: txHash
+    A->>P: update standing counters
+    A-->>L: 201 { recordId, commitment, txHash }

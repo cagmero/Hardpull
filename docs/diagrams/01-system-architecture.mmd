@@ -1,0 +1,55 @@
+graph TD
+    subgraph "On-Chain (Ethereum Sepolia)"
+        SR[SubjectRegistry]
+        FR[FurnisherRegistry]
+        EC[ExposureCommitments]
+        RL[ReciprocityLedger]
+        VA[VerdictAttestations]
+        ENS[ENSv2 Consent Grants]
+    end
+
+    subgraph "On-Chain (Hedera Testnet)"
+        X402[x402 Facilitator]
+        HCS[HCS Inquiry Topic]
+    end
+
+    subgraph "Confidential Compute"
+        CRE[Chainlink CRE Workflow - TEE]
+    end
+
+    subgraph "Data Layer"
+        SG[Hardpull Subgraph]
+        PG[(Postgres)]
+        RD[(Redis)]
+    end
+
+    subgraph "Service Layer"
+        API[Hardpull API - Hono]
+        MCP[Subgraph MCP Server]
+    end
+
+    subgraph "Clients"
+        LC[Lender Console]
+        BV[Borrower File Viewer]
+        DA[Demo Lenders A and B]
+        AG[Underwriting Agent]
+    end
+
+    DA -->|1. furnish ciphertext| API
+    API -->|2. write commitment| EC
+    DA -->|3. pull request| API
+    AG -->|3b. pull request| API
+    API -->|4. verify grant| ENS
+    API -->|5. check standing| RL
+    API -->|6. settle payment| X402
+    API -->|7. invoke with ciphertext| CRE
+    SG -->|8. public exposure| CRE
+    CRE -->|9. signed verdict| API
+    API -->|10. write attestation| VA
+    API -->|11. log inquiry| HCS
+    API -->|12. verdict| DA
+    API --> PG
+    API --> RD
+    MCP --> SG
+    LC --> API
+    BV --> API

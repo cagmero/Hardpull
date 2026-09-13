@@ -1,0 +1,12 @@
+sequenceDiagram
+    participant S as Subject
+    participant V as File Viewer
+    participant E as ENSv2 EAC
+
+    S->>V: grant access to Lender B, 30 days, 3 pulls
+    V->>E: setAccess(subjectNode, lenderB, expiry, maxPulls)
+    E-->>V: txHash
+    Note over S,E: later
+    S->>V: revoke
+    V->>E: clearAccess(subjectNode, lenderB)
+    Note over E: subsequent pulls fail at step 2, before compute

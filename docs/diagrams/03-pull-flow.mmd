@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant B as Lender B Agent
+    participant A as Hardpull API
+    participant E as ENSv2
+    participant X as x402 (Hedera)
+    participant R as CRE Workflow (TEE)
+    participant G as Subgraph
+    participant H as HCS
+
+    B->>A: POST /v1/pull { subjectId, proposedPrincipal }
+    A-->>B: 402 Payment Required (x402 challenge)
+    B->>X: settle payment
+    B->>A: retry with payment receipt
+    A->>E: validate consent grant
+    A->>A: check reciprocity standing
+    A->>X: verify receipt
+    A->>G: fetch public exposure
+    A->>R: invoke { ciphertextSet, publicExposure, inquiryHistory }
+    R->>R: decrypt, verify commitments, aggregate, apply rules, bucket
+    R-->>A: signed verdict (no furnisher detail)
+    A->>H: log inquiry
+    A-->>B: 200 { verdict: CRITICAL, stackingFlags: [...] }

@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/build
+.git
+*.log
+.env
+**/.env
+**/.env.local
+contracts/out
+contracts/cache
+contracts/lib
+subgraph/generated
+subgraph/build
+cre

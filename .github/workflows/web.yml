@@ -1,0 +1,85 @@
+name: web
+
+# console, both demo lenders, the MCP server, the SDK and the shared types package had no CI at
+# all -- only api, contracts and cre did. A type error in any of them would have reached the
+# demo rather than a pull request.
+on:
+  push:
+    paths:
+      - "console/**"
+      - "demo-lenders/**"
+      - "mcp/**"
+      - "sdk-node/**"
+      - "packages/types/**"
+      - "api/openapi.yaml"
+      - ".github/workflows/web.yml"
+  pull_request:
+    paths:
+      - "console/**"
+      - "demo-lenders/**"
+      - "mcp/**"
+      - "sdk-node/**"
+      - "packages/types/**"
+      - "api/openapi.yaml"
+      - ".github/workflows/web.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @hardpull/types
+        run: pnpm --filter @hardpull/types build
+
+      - name: Test @hardpull/types
+        run: pnpm --filter @hardpull/types test
+
+      # Regenerates the client from api/openapi.yaml, so a spec change that breaks the SDK fails
+      # here instead of at runtime.
+      - name: Build @hardpull/sdk-node (regenerates from openapi.yaml)
+        run: pnpm --filter @hardpull/sdk-node build
+
+      - name: Build @hardpull/mcp
+        run: pnpm --filter @hardpull/mcp build
+
+      - name: Build console
+        run: pnpm --filter @hardpull/console build
+
+      - name: Build demo lenders
+        run: |
+          pnpm --filter @hardpull/demo-lender-a build
+          pnpm --filter @hardpull/demo-lender-b build
+
+  subgraph:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Both manifests must compile to real WASM. This is what catches a mapping that no longer
+      # matches a protocol's event signature.
+      - name: Build mainnet manifest
+        run: |
+          pnpm --filter @hardpull/subgraph codegen:mainnet
+          pnpm --filter @hardpull/subgraph build:mainnet
+
+      - name: Build sepolia manifest
+        run: |
+          pnpm --filter @hardpull/subgraph codegen:sepolia
+          pnpm --filter @hardpull/subgraph build:sepolia

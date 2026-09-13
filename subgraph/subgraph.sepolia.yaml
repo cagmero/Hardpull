@@ -10,7 +10,7 @@ dataSources:
       # Filled in automatically after a Sepolia deploy by `node scripts/sync-deployments.mjs`,
       # which reads docs/deployments.11155111.json. Left as zeros until then on purpose: a wrong
       # address would index nothing and look like a mapping bug (T-034).
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0xb85AbFF5DcA9f3006A97B2f787d3Ee80691B11dC"
       abi: ExposureCommitments
       startBlock: 0
     mapping:
@@ -31,7 +31,7 @@ dataSources:
     name: ReciprocityLedger
     network: sepolia
     source:
-      address: "0x0000000000000000000000000000000000000000" # see note above
+      address: "0x75D729Fdb1E2F73941d65cFc557052B5c8A8A81a"
       abi: ReciprocityLedger
       startBlock: 0
     mapping:

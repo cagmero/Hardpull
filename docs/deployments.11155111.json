@@ -1,0 +1,8 @@
+{
+  "ExposureCommitments": "0xb85AbFF5DcA9f3006A97B2f787d3Ee80691B11dC",
+  "FurnisherRegistry": "0x687e6194530F60A0BFd03aDf014E9C8D723E88DE",
+  "ReciprocityLedger": "0x75D729Fdb1E2F73941d65cFc557052B5c8A8A81a",
+  "SubjectRegistry": "0x0A6C7Bc825946c32984d3e265f6Fd5a34621ecaF",
+  "VerdictAttestations": "0x6417C8F2145A91be3d3cD905Fb003aEb71148782",
+  "chainId": 11155111
+}

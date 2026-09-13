@@ -18,8 +18,9 @@ out/
 contracts/cache/
 contracts/out/
 contracts/lib/
-contracts/broadcast/*/31337/
-contracts/broadcast/*/dry-run/
+# Foundry run artifacts. Build output, not source -- docs/deployments.md is the published
+# record of what is deployed where, and contracts/cache/ holds values Foundry marks sensitive.
+contracts/broadcast/
 
 # Go
 cre/bin/

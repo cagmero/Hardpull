@@ -297,3 +297,67 @@ conspicuous:
 CRE deploy access, a funded Hedera testnet account plus a reachable x402 facilitator, a Subgraph
 Studio deployment, a World ID Developer Portal app, and `hardpull.eth` on Sepolia for the ENSv2
 EAC mirror.
+
+## 2026-09-13 — Live on Sepolia and Hedera; three bugs that only real infrastructure could find
+
+**Context:** the previous entries said the remaining work was "entirely external provisioning,
+not engineering." That turned out to be half true. The provisioning was indeed the blocker, but
+going live immediately exposed three defects that had been invisible because every prior test
+ran against a local Anvil node and unconfigured external services.
+
+**What is now live:**
+
+- **Ethereum Sepolia.** All five contracts deployed and **verified on Etherscan**, which is
+  T-026's acceptance criterion. Addresses, deploy transactions and explorer links are published
+  in `docs/deployments.md`. `VerdictAttestations.creSigner` matches the address
+  `cre/cmd/keygen` printed — the immutable-ordering trap that tool exists to prevent was
+  avoided in practice, not just documented.
+- **Hedera Consensus Service.** Topic `0.0.10525131` created and receiving real inquiries: a
+  full scenario run put two messages on it, each carrying only the five hashed or enumerable
+  fields `spec.md` #6.8 permits.
+- **The full T-090 scenario, against live Sepolia.** 1/1 clean, including the `CRITICAL`
+  verdict, the disclosure invariant, idempotent replay, non-transferable consent, a pull through
+  the generated SDK, and revocation. Two `VerdictAttested` events landed on Sepolia during it.
+- **x402 on `hedera:testnet`.** A pull that passes consent and standing now returns a real 402
+  challenge: `{scheme: exact, network: hedera:testnet, asset: 0.0.429274, payTo: <operator>,
+  extra: {feePayer: <facilitator>}}`.
+
+### The three bugs
+
+**1. Chain writes were not confirmed, and reverts read as success.** The first Sepolia run failed
+with `FurnisherNotActive()`. `POST /v1/furnishers` called `writeContract` and never awaited a
+receipt: Anvil auto-mines so the registration was effective the instant it returned, Sepolia
+takes ~12s, and the caller's very next furnish read pre-registration state — after the API had
+already answered 201. The three paths that *did* wait had the other half of the same bug: none
+checked `receipt.status`, and viem resolves the receipt for a **reverted** transaction too, so a
+revert was indistinguishable from success and would have surfaced somewhere else entirely,
+later. Both are now behind one `confirm()` helper.
+
+**2. The x402 integration had never been exercised, and was misconfigured.** It needed a funded
+Hedera account to run at all, so it never had. On first contact every paid pull died *while
+building the challenge*: `Default Hedera asset must be an HTS fungible token ID`. The config
+passed `{asset: "0.0.0", decimals: 8}` on the reasoning that `0.0.0` is native HBAR in tinybars.
+`@x402/hedera` explicitly rejects that id — a Money string can only be converted into an HTS
+fungible token, and HBAR is not one. The package already ships the correct per-network default
+(testnet USDC `0.0.429274`, 6 decimals), so the override was both wrong and unnecessary.
+Deleting it was the entire fix.
+
+**3. Differential pricing never differentiated.** `pullPrice` chose the discounted furnisher rate
+when `pullAllowance > 0`. But `ReciprocityLedger.pullAllowance = baseAllowance + freshRecordCount
+* k` with `baseAllowance` defaulting to 5, so it is **never** zero: every caller got the
+discount, including a lender that had furnished nothing. T-061 asks for "two callers with
+different standing receive different price quotes in the 402 challenge", which this could not do
+at any input. Now keyed on `freshRecordCount`, which is 0 until you actually furnish — the thing
+the discount is meant to reward.
+
+**Rationale for recording this:** the prior entry's confidence that only provisioning remained
+was wrong in a specific, instructive way. Three defects sat in code that compiled, passed its
+tests, and worked end to end against a local node. Each needed a different piece of real
+infrastructure to surface — a chain with block times, a funded Hedera account, and a second
+lender with different standing. "Works on Anvil" and "works" are different claims, and this is
+the third time this session that distinction has mattered.
+
+**Still pending:** CRE deploy access (`cre account access`, private beta), a Subgraph Studio
+deployment, and Hedera testnet USDC held by the paying account to settle a challenge rather than
+merely receive one. World ID was deliberately left unconfigured — it is in the "built but not
+submitted" bucket, not one of the three selected partners.

@@ -53,9 +53,9 @@ and build it individually; see [`CONTRIBUTING.md`](./CONTRIBUTING.md) for commit
 
 ## Status
 
-The full product narrative runs end to end. `docs/spec.md` §8's success criteria are an
-executable gate, not a checklist — `api/src/scripts/e2e-scenario.ts` asserts every step and
-currently passes **3/3 consecutive clean runs** (`docs/plan.md` T-090):
+**Live on Ethereum Sepolia and Hedera Testnet.** The full product narrative — `docs/spec.md`
+§8's success criteria — runs end to end against those real networks, asserted step by step by
+`api/src/scripts/e2e-scenario.ts` (`docs/plan.md` T-090):
 
 ```
 ✓ Consent gate                 a pull with no grant is refused 403 before compute or payment
@@ -67,34 +67,36 @@ currently passes **3/3 consecutive clean runs** (`docs/plan.md` T-090):
 ✓ Revocation                   the next pull after revoking is refused 403
 ```
 
-Component by component, each independently verified — not just built:
+Addresses, deploy transactions and explorer links: [`docs/deployments.md`](./docs/deployments.md).
 
-- **`cre/`** — **the T-014 viability gate is closed.** `cre workflow simulate` runs the real
-  Confidential Workflow and returns a signed `CRITICAL` verdict for the stacking scenario. Ten
-  tests exercise the actual TEE handler through the SDK's `testutils` runtime, including the one
-  that matters most: plaintext, furnisher identity and both private keys appear in neither the
-  returned verdict nor any enclave log.
-- **`contracts/`** — 36 Foundry tests pass, including a 10,000-run fuzz test on the disclosure
-  invariant. Deployed to Anvil and exercised end to end; `VerdictAttestations.verify()` returns
-  `true` for a verdict signed by the workflow.
-- **`api/`** — the full short-circuit chain (auth → idempotency → consent → standing → x402 →
-  compute) runs live against real Postgres, Redis and a chain. 43 tests. `GET /health/ready`
-  reports exactly which integrations are live.
-- **`subgraph/`** — both manifests build to real WASM, now with mainnet addresses confirmed by
-  live contract calls and start blocks found by binary-searching an archive node.
+- **`contracts/`** — all five deployed to Sepolia and **verified on Etherscan**. 36 Foundry
+  tests including a 10,000-run fuzz test on the disclosure invariant. `VerdictAttestations`
+  holds real attestations written by live pulls, and `verify()` returns true for them.
+- **Hedera** — inquiries land on HCS topic
+  [`0.0.10525131`](https://hashscan.io/testnet/topic/0.0.10525131), carrying only hashed or
+  enumerable fields. A pull past the consent and standing gates returns a real x402 challenge on
+  `hedera:testnet` denominated in USDC.
+- **`cre/`** — the **T-014 viability gate is closed**: `cre workflow simulate` runs the real
+  Confidential Workflow and returns a signed `CRITICAL` verdict. Ten tests exercise the actual
+  TEE handler through the SDK's `testutils` runtime, including the one that matters — plaintext,
+  furnisher identity and both private keys appear in neither the verdict nor any enclave log.
+- **`api/`** — 43 tests; `GET /health/ready` reports exactly which integrations are live and
+  what each gate of `/v1/pull` will currently do.
+- **`subgraph/`** — both manifests build to real WASM, with mainnet addresses confirmed by live
+  contract calls and start blocks found by binary-searching an archive node.
 - **`console/`, `demo-lenders/`, `mcp/`, `sdk-node/`** — all build in CI; the SDK performs a real
   pull against the live API as part of the gate.
 
-**What is not live**, unchanged in kind: everything needing an external account this environment
-doesn't have — CRE *deploy* access (private beta; simulation needed none), a funded Hedera
-testnet account, a Subgraph Studio deployment, a World ID app, and `hardpull.eth` on Sepolia.
-Each fails with a specific typed error at exactly that boundary rather than silently no-op'ing.
+**Not yet live:** CRE *deploy* access (Confidential Workflows is private beta — simulation needed
+none of it), a Subgraph Studio deployment, and World ID, which is deliberately unconfigured
+because it sits in the "built but not submitted" bucket rather than among the three selected
+partners.
 
-Two switches exist so the flow can be rehearsed before those accounts do: `cre/cmd/localgateway`
-(the same handler code over HTTP — **not a TEE**, and it says so on startup) and
-`HARDPULL_X402_MODE=disabled` (skips payment; logs a warning on every request and is reported as
-`BYPASSED` by `/health/ready`). Neither is on by default, and no demo may run with them on.
+Two switches exist so the flow can be rehearsed without those: `cre/cmd/localgateway` (the same
+handler code over HTTP — **not a TEE**, and it says so on startup) and `HARDPULL_X402_MODE=disabled`
+(skips payment; warns on every request and is reported as `BYPASSED` by `/health/ready`). Neither
+is on by default, and no demo may run with them on.
 
-See [`docs/DECISIONS.md`](./docs/DECISIONS.md) for the full status log — including the two bugs
-that only surfaced by actually running the workflow — each package's README for what it
+See [`docs/DECISIONS.md`](./docs/DECISIONS.md) for the full log — including the three bugs that
+only surfaced once this ran against real infrastructure — each package's README for what it
 specifically needs, and [`docs/partners/`](./docs/partners) for the per-partner write-ups.

@@ -7,9 +7,12 @@ dataSources:
     name: ExposureCommitments
     network: sepolia
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: filled from ../docs/deployments.json (T-034)
+      # Filled in automatically after a Sepolia deploy by `node scripts/sync-deployments.mjs`,
+      # which reads docs/deployments.11155111.json. Left as zeros until then on purpose: a wrong
+      # address would index nothing and look like a mapping bug (T-034).
+      address: "0x0000000000000000000000000000000000000000"
       abi: ExposureCommitments
-      startBlock: 0 # TODO
+      startBlock: 0
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -28,9 +31,9 @@ dataSources:
     name: ReciprocityLedger
     network: sepolia
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO
+      address: "0x0000000000000000000000000000000000000000" # see note above
       abi: ReciprocityLedger
-      startBlock: 0 # TODO
+      startBlock: 0
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9

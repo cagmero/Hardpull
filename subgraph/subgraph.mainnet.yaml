@@ -1,5 +1,12 @@
 specVersion: 1.0.0
 description: Hardpull normalized credit schema -- public protocol ingestion (Aave v3, Morpho Blue, Maple)
+# Every address below was confirmed on mainnet (contract calls that only the real contract could
+# answer), and every startBlock is that contract's actual deployment block, so nothing is missed.
+#
+# Indexing Aave from block 16291127 is years of history and takes a long time to sync. For a
+# demo where recent positions are all that matter, raise the startBlocks to something recent --
+# the trade-off is that the subgraph then only sees positions opened after that point. See
+# subgraph/README.md.
 schema:
   file: ./schema.graphql
 dataSources:
@@ -7,9 +14,12 @@ dataSources:
     name: AaveV3Pool
     network: mainnet
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: Aave v3 Pool proxy (T-031)
+      # Aave v3 Pool proxy. Verified live: ADDRESSES_PROVIDER() returns the canonical Aave v3
+      # PoolAddressesProvider 0x2f39d218133AFaB8F2B819B1066c7E434Ad94E9e. Start block found by
+      # binary-searching an archive node for the first block with code at this address.
+      address: "0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2"
       abi: AaveV3Pool
-      startBlock: 0 # TODO
+      startBlock: 16291127
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -32,9 +42,10 @@ dataSources:
     name: MorphoBlue
     network: mainnet
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: Morpho Blue singleton (T-032)
+      # Morpho Blue singleton. Verified live: owner() and DOMAIN_SEPARATOR() both respond.
+      address: "0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb"
       abi: MorphoBlue
-      startBlock: 0 # TODO
+      startBlock: 18883124
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -60,9 +71,13 @@ dataSources:
     name: MapleLoanFactory
     network: mainnet
     source:
-      address: "0x0000000000000000000000000000000000000000" # TODO: fixed-term-loan-manager factory (T-033)
+      # Maple fixedTermLoanFactoryV2, from maple-labs/address-registry (MapleAddressRegistryETH).
+      # V2 rather than V1: the V1 factory at 0x36a7350309B2Eb30F3B908aB0154851B5ED81db0 reports
+      # defaultVersion() == 0 (retired), while this one reports 601 and shares the same
+      # mapleGlobals 0x804a6F5F667170F545Bf14e5DDB48C70B788390C. Both checked live.
+      address: "0xeA067DB5B32CE036Ee5D8607DBB02f544768dBC6"
       abi: MapleLoanFactory
-      startBlock: 0 # TODO
+      startBlock: 18777478
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9

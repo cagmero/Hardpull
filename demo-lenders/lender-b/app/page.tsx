@@ -5,6 +5,7 @@ import { useState } from "react";
 export default function LenderB() {
   const [subjectId, setSubjectId] = useState("");
   const [proposedPrincipal, setProposedPrincipal] = useState("40000");
+  const [consentToken, setConsentToken] = useState("");
   const [result, setResult] = useState<{ decision: string; trace: string[]; verdict?: unknown } | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -15,7 +16,7 @@ export default function LenderB() {
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ subjectId, proposedPrincipal }),
+        body: JSON.stringify({ subjectId, proposedPrincipal, consentToken }),
       });
       setResult(await res.json());
     } finally {
@@ -39,8 +40,12 @@ export default function LenderB() {
         Proposed principal
         <input value={proposedPrincipal} onChange={(e) => setProposedPrincipal(e.target.value)} />
       </label>
+      <label>
+        Consent token (the grantId the borrower got from the console and shared with this lender)
+        <input value={consentToken} onChange={(e) => setConsentToken(e.target.value)} style={{ width: "100%" }} />
+      </label>
 
-      <button onClick={runAgent} disabled={!subjectId || running} style={{ marginTop: 12 }}>
+      <button onClick={runAgent} disabled={!subjectId || !consentToken || running} style={{ marginTop: 12 }}>
         {running ? "Agent running..." : "Run underwriting agent"}
       </button>
 

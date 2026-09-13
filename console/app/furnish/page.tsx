@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { sealAnonymous, fromHex, toHex } from "@hardpull/types";
+import { sealAnonymous, generateKeyPair, fromHex, toHex } from "@hardpull/types";
 import { apiFetch, hmacHex } from "@/lib/api";
 
 export default function FurnishPage() {
   const [operatorAddress, setOperatorAddress] = useState("0x70997970C51812dc3A010C7d01b50e0d17dc79C8");
-  const [workflowPublicKeyHex, setWorkflowPublicKeyHex] = useState("1111111111111111111111111111111111111111111111111111111111111111");
+  // The CRE workflow's public key -- what records are sealed TO, and the only key that can
+  // open them. Comes from `cd cre && go run ./cmd/keygen`; prefilled from env when configured.
+  // Distinct from the furnisher's own identity key, which is generated per registration below.
+  const [workflowPublicKeyHex, setWorkflowPublicKeyHex] = useState(
+    process.env.NEXT_PUBLIC_CRE_WORKFLOW_PUBLIC_KEY_HEX ?? "",
+  );
   const [registration, setRegistration] = useState<Record<string, string> | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
 
@@ -26,7 +31,9 @@ export default function FurnishPage() {
     const { status: httpStatus, body } = await apiFetch("/v1/furnishers", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ operatorAddress, publicKeyHex: workflowPublicKeyHex }),
+      // A furnisher registers its OWN X25519 public key as its registry identity. Sealing uses
+      // the workflow key above; these are two different keys and must not be crossed.
+      body: JSON.stringify({ operatorAddress, publicKeyHex: toHex(generateKeyPair().publicKey) }),
     });
     if (httpStatus !== 201) {
       setRegisterError(JSON.stringify(body));

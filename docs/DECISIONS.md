@@ -96,3 +96,54 @@ would not have been caught by unit tests in isolation -- both only surfaced by a
 the full chain against a live stack, which is why that verification style was used throughout
 rather than stopping at "it compiles."
 
+## 2026-09-13 — Second pass: closed every code-only gap from the prior entry
+
+**Context:** the prior entry's "known gaps" list mixed two different kinds of item: things that
+needed more code, and things that needed an external account. This pass closed every item in the
+first category; what's left is entirely the second.
+
+**What changed:**
+- **x402 settlement ordering** — re-examined and found the code was already correct
+  (`requireX402Payment` gates `processSettlement` on `c.res.status < 400`); the prior write-up
+  overstated the risk. Comment in `pull.ts` corrected to describe the real, much smaller residual
+  edge case (settlement failing *after* a successful 200 has already been returned).
+- **Reconciliation drift math** — was comparing a Postgres proxy count directly against
+  `ReciprocityLedger`'s computed `pullAllowance`. Fixed to call the contract's own
+  `freshRecordCount()`/`versionCount()` views directly. Verified live by injecting both a
+  standing-count drift and a commitment-version drift straight into Postgres and confirming the
+  job detects each and exits non-zero, with a clean run left undisturbed.
+- **Webhook retry durability** — replaced the in-process `setTimeout` chain (couldn't survive a
+  restart, only spanned ~1h) with a persisted `webhook_deliveries` queue and a worker script.
+  Verified live against a real HTTP receiver: successful delivery with a cryptographically
+  confirmed HMAC signature, and a failed delivery correctly incrementing `attempt_count` and
+  scheduling `next_attempt_at`.
+- **ENSv2 Enhanced Access Control** — implemented for real against the actual
+  `IEnhancedAccessControl.sol` interface (verified from `ensdomains/contracts-v2` source).
+  Surfaced a genuine prerequisite: `grantRoles` reverts unless the caller already admins the
+  target resource, and a resource only gets an admin once something is registered against it --
+  so this needs `hardpull.eth` registered on Sepolia plus a subname minted per subject before it
+  does anything beyond skip gracefully. Same category of dependency as a funded Hedera account.
+- **CRE workflow request signing** — implemented as a verified port of the real CRE TypeScript
+  SDK's JWT-signing client (fetched and checked line-by-line from
+  `smartcontractkit/cre-sdk-typescript`). A test confirms the signature genuinely recovers to the
+  signing key's address.
+- **World ID console widget** — added, deliberately pinned to `@worldcoin/idkit@2.4.2` rather
+  than latest: the latest major version ships a different World ID 4.0 protocol
+  (`rp_context`, presets, a different result shape) that the backend's cloud-verify call doesn't
+  implement. 2.4.2's result shape matches exactly.
+- **Console standing dashboard** — added, backed by a new public `GET
+  /v1/furnishers/:id/standing` endpoint reading live from `ReciprocityLedger`/`FurnisherRegistry`
+  (spec.md #6.7.4 explicitly calls for standing to be independently verifiable onchain).
+- **OpenAPI spec + SDK codegen (T-05B)** — `api/openapi.yaml` written, `sdk-node` rewritten on
+  `openapi-typescript` + `openapi-fetch` instead of hand-typed. Verified live: the generated
+  client's `getStanding()`/`getInquiries()` both returned real data from the running API.
+
+**What's still pending, and it is now entirely external provisioning, not code:** a Chainlink CRE
+account (blocks simulating/deploying the workflow and confirming the JWT digest scheme matches
+byte-for-byte), a funded Hedera testnet account and reachable x402 facilitator (blocks payment
+settlement and HCS logging), a Subgraph Studio deployment, a registered World ID Developer Portal
+app, and `hardpull.eth` registered on Sepolia with per-subject subnames minted (blocks the EAC
+mirror writes actually succeeding). None of these need a redesign -- every integration is written
+and gated behind a clear, typed error when its prerequisite is missing.
+
+

@@ -44,3 +44,55 @@ back to T-015 (threshold encryption / trusted-operator model) would throw away a
 confidential-compute path over an access gap, not a technical one. Revisit this entry the moment
 CRE account access exists — running the real simulation is the next action, not a redesign.
 
+## 2026-09-13 — Full build pass complete; status of every workstream
+
+**Context:** end-to-end implementation pass across all nine components in one continuous session,
+following `plan.md`'s workstream breakdown. Recording final status here since it spans every
+workstream rather than one gate.
+
+**What's genuinely verified (run live, not just built or unit-tested):**
+- `contracts/`: 36 Foundry tests, including a 10,000-run fuzz test for the disclosure invariant
+  (T-027). Deployed to a local Anvil node and exercised via `cast send`/`cast call`.
+- `cre/`: compiles to real WASM against the actual `cre-sdk-go`. Sealed-box encryption proven
+  byte-for-byte interoperable with the TypeScript twin via `cre/cmd/interop`, both directions,
+  real keypair.
+- `subgraph/`: both manifests (`mainnet`, `sepolia`) build to WASM against real `graph-cli`.
+  Every event signature checked against each protocol's real source on GitHub. Corrected two
+  design assumptions this way: Maple has no fixed loan address (needs the factory/template
+  pattern), and Morpho's `Borrow` event indexes different parameters than initially assumed.
+- `api/`: the full `/v1/pull` short-circuit chain (auth → idempotency → consent → standing →
+  x402 → compute) run live against Postgres + Redis + Anvil. Caught and fixed two real bugs this
+  way, not found by unit tests alone:
+  1. `FurnisherRegistry.register()` bound `operatorToFurnisher[msg.sender]`, but the API is
+     always the transaction sender (furnishers relay through it). The first registration
+     permanently occupied that slot, so a second furnisher could never register. Fixed by making
+     the contract registrar-gated with an explicit `operator` parameter, matching
+     `SubjectRegistry`'s existing pattern.
+  2. `POST /v1/consent` was gated behind furnisher OAuth2 bearer auth, but granting consent is a
+     *subject* (borrower) action per `spec.md` §6.3, not a furnisher action. Replaced with
+     wallet-signature auth verified against the `wallets` table.
+- `console/`, `demo-lenders/`: functional pages verified against the live stack, including the
+  full narrative — Lender A furnishes, a subject grants consent via a real wallet signature,
+  Lender B's autonomous agent registers itself, gets a token, and correctly reports
+  `CONSENT_MISSING` or `PAYMENT_SYSTEM_UNAVAILABLE` at exactly the right boundary.
+- `mcp/`: all four tools registered, confirmed live over a real stdio JSON-RPC handshake.
+
+**What's explicitly not verified, and why:** anything gated on an external account this
+environment doesn't have --- a Chainlink CRE login (blocks `cre workflow simulate`/`deploy`), a
+funded Hedera testnet account (blocks x402 settlement and HCS logging), a Subgraph Studio API key
+(blocks live subgraph deployment), a registered World ID Developer Portal app (blocks live proof
+verification). Each of these fails at the API layer with a specific, typed error rather than a
+generic failure or a silent no-op -- confirmed by triggering each one live during this session.
+
+**Decision:** ship this as the Net-New submission base. The remaining work is entirely
+account/deployment provisioning (create the accounts, run the deploy scripts already written and
+tested against Anvil, point env vars at the results) rather than further engineering -- no
+component needs a redesign to go live.
+
+**Rationale:** every external-dependency boundary was hit and handled deliberately (a typed
+error naming the missing dependency), not discovered as a surprise. The two real bugs found
+during live verification (the FurnisherRegistry msg.sender issue and the consent-auth model)
+would not have been caught by unit tests in isolation -- both only surfaced by actually running
+the full chain against a live stack, which is why that verification style was used throughout
+rather than stopping at "it compiles."
+

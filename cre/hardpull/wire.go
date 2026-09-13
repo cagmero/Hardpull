@@ -1,5 +1,3 @@
-//go:build wasip1
-
 // This file, main.go, and signing.go compile only to WASM (GOOS=wasip1 GOARCH=wasm) -- that is
 // the only target a CRE workflow binary runs as. Business logic that doesn't need the CRE
 // runtime lives in workflow/, which is plain Go and unit-testable on any platform.

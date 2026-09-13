@@ -1,0 +1,6 @@
+{
+  "authorizedPullerKeys": [],
+  "workflowPrivateKeySecretId": "WORKFLOW_X25519_PRIVATE_KEY",
+  "workflowPublicKeyHex": "0000000000000000000000000000000000000000000000000000000000000000",
+  "attestationSignerSecretId": "ATTESTATION_SIGNER_KEY"
+}

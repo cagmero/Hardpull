@@ -1,5 +1,3 @@
-//go:build wasip1
-
 package main
 
 import (
@@ -11,7 +9,6 @@ import (
 
 	httpcap "github.com/smartcontractkit/cre-sdk-go/capabilities/networking/http"
 	"github.com/smartcontractkit/cre-sdk-go/cre"
-	"github.com/smartcontractkit/cre-sdk-go/cre/wasm"
 
 	"github.com/hardpull/cre/workflow"
 )
@@ -141,6 +138,13 @@ func onPullRequest(config *Config, runtime cre.TeeRuntime, payload *httpcap.Payl
 // handler. HandlerInTee (not Handler) is what makes this a Confidential Workflow -- the whole
 // callback runs inside a TEE (docs/architecture.md #2.2, docs/plan.md T-044).
 func InitWorkflow(config *Config, logger *slog.Logger, secretsProvider cre.SecretsProvider) (cre.Workflow[*Config], error) {
+	// An empty key list means the trigger authorizes nobody in particular, which is what
+	// simulation needs and exactly what production must not ship with. Warn rather than fail:
+	// failing here would make `cre workflow simulate` impossible to run out of the box.
+	if len(config.AuthorizedPullerKeys) == 0 && logger != nil {
+		logger.Warn("authorizedPullerKeys is empty -- fine for simulation, but set the Hardpull API's signer address before deploying")
+	}
+
 	keys := make([]*httpcap.AuthorizedKey, 0, len(config.AuthorizedPullerKeys))
 	for _, k := range config.AuthorizedPullerKeys {
 		keys = append(keys, &httpcap.AuthorizedKey{Type: httpcap.KeyType_KEY_TYPE_ECDSA_EVM, PublicKey: k})
@@ -153,9 +157,4 @@ func InitWorkflow(config *Config, logger *slog.Logger, secretsProvider cre.Secre
 			cre.AnyTee{},
 		),
 	}, nil
-}
-
-// main is the WASM entry point. The runner parses config.json into Config and calls InitWorkflow.
-func main() {
-	wasm.NewRunner(cre.ParseJSON[Config]).Run(InitWorkflow)
 }

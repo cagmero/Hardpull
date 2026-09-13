@@ -1,0 +1,10 @@
+*.env
+!.env.example
+*.wasm
+
+# Local override for testing against an unreleased SDK checkout
+go.work
+go.work.sum
+
+# Public halves recorded by cmd/keygen -- regenerated per environment, not committed.
+.keys.public.json

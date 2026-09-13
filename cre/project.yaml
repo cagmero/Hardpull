@@ -1,0 +1,18 @@
+# ==========================================================================
+# CRE PROJECT SETTINGS (docs/plan.md T-044)
+# ==========================================================================
+# The Hardpull workflow performs no chain reads or writes of its own -- commitment
+# verification uses the on-chain values the API passes in with the request, and the verdict
+# attestation is written by the API after the workflow returns (docs/architecture.md #2.2).
+# The RPCs below exist so `--broadcast` simulation and a future in-workflow WriteReport work
+# without further setup.
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com
+
+# ==========================================================================
+production-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com

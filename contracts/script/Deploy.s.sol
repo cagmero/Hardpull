@@ -10,7 +10,7 @@ import {ExposureCommitments} from "../src/ExposureCommitments.sol";
 import {VerdictAttestations} from "../src/VerdictAttestations.sol";
 
 /// @notice Deploys the five Hardpull contracts in dependency order and writes addresses to
-///         docs/deployments.json (docs/plan.md T-026).
+///         docs/deployments.<chainId>.json (docs/plan.md T-026).
 ///
 /// Env vars:
 ///   DEPLOYER_PRIVATE_KEY  - required, deployer/owner key
@@ -50,6 +50,10 @@ contract Deploy is Script {
         vm.serializeAddress(json, "ExposureCommitments", address(exposureCommitments));
         string memory finalJson = vm.serializeAddress(json, "VerdictAttestations", address(verdictAttestations));
 
-        vm.writeJson(finalJson, "../docs/deployments.json");
+        // Written per-chain: a local Anvil run (31337) must never overwrite, or be mistaken
+        // for, the real Sepolia deployment (11155111). Only the latter is committed.
+        string memory path = string.concat("../docs/deployments.", vm.toString(block.chainid), ".json");
+        vm.writeJson(finalJson, path);
+        console.log("Wrote", path);
     }
 }

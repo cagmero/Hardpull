@@ -49,3 +49,7 @@ Thumbs.db
 # Turbo/misc
 .turbo/
 coverage/
+
+# Per-chain deploy output. The Sepolia file (docs/deployments.11155111.json) IS committed --
+# it is how T-026 publishes addresses. Local Anvil runs (31337) are ephemeral and are not.
+docs/deployments.31337.json

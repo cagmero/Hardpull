@@ -6,6 +6,7 @@ require (
 	github.com/ethereum/go-ethereum v1.17.2
 	github.com/smartcontractkit/cre-sdk-go v1.19.0
 	github.com/smartcontractkit/cre-sdk-go/capabilities/networking/http v1.3.0
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.57.0
 )
 
@@ -22,7 +23,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/smartcontractkit/chainlink-protos/cre/go v0.0.0-20260812164709-12e39591442b // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/supranational/blst v0.3.16 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

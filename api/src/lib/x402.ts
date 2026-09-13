@@ -2,7 +2,7 @@ import type { Context, MiddlewareHandler } from "hono";
 import { x402ResourceServer, HTTPFacilitatorClient } from "@x402/core/server";
 import { x402HTTPResourceServer, type HTTPAdapter, type HTTPRequestContext, type RoutesConfig } from "@x402/core/http";
 import { ExactHederaScheme } from "@x402/hedera/exact/server";
-import { pullAllowanceOnChain } from "../chain/contracts.js";
+import { freshRecordCountOnChain } from "../chain/contracts.js";
 
 // Real @x402/core + @x402/hedera wiring, verified against the packages' actual type
 // definitions (not guessed) -- see api/README.md for what's confirmed vs. what still needs a
@@ -51,9 +51,18 @@ async function pullPrice(context: HTTPRequestContext): Promise<string> {
   if (!furnisherId) return BASE_PRICE_USD;
 
   try {
-    const allowance = await pullAllowanceOnChain(furnisherId as `0x${string}`);
-    return allowance > 0n ? FURNISHER_PRICE_USD : BASE_PRICE_USD;
+    // freshRecordCount, NOT pullAllowance. ReciprocityLedger computes
+    // `pullAllowance = baseAllowance + freshRecordCount * k` with baseAllowance defaulting to
+    // 5, so pullAllowance is never 0 and the old `allowance > 0n` test was true for everyone --
+    // a lender that had never furnished anything was quoted the discounted furnisher price.
+    // T-061 asks for two callers with different standing to receive different quotes, which
+    // that could not do. freshRecordCount is 0 until you actually furnish, which is the thing
+    // the discount is meant to reward.
+    const freshRecords = await freshRecordCountOnChain(furnisherId as `0x${string}`);
+    return freshRecords > 0n ? FURNISHER_PRICE_USD : BASE_PRICE_USD;
   } catch {
+    // Pricing degrades to the base rate if standing can't be read; payment verification never
+    // degrades. Charging full price on a chain hiccup is the safe direction to fail.
     return BASE_PRICE_USD;
   }
 }

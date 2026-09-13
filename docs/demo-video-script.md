@@ -1,11 +1,21 @@
 # Demo Video Script (2:30–3:30 target)
 
-Structure follows `docs/plan.md` T-094. Every step below references a page/command that actually
-exists and was exercised live during development — this is a recording guide, not aspirational
-copy. **Before recording**, complete the setup checklist at the bottom: several steps need a
-funded Hedera testnet account, a deployed CRE workflow, and a deployed subgraph, none of which
-exist yet in this environment (see `docs/DECISIONS.md` and each package's README for exactly
-what's pending).
+Structure follows `docs/plan.md` T-094. Every step below references a page or command that
+actually exists and was exercised live — this is a recording guide, not aspirational copy.
+
+The whole narrative already runs end to end locally and is asserted by
+`api/src/scripts/e2e-scenario.ts` (3/3 clean runs). **Recording it for real still needs the
+external accounts** in the checklist at the bottom — and two of them are not optional for
+honesty, not merely for polish:
+
+- **Never record with `HARDPULL_X402_MODE=disabled`.** It skips payment entirely. Segment 3's
+  claim that the agent "pays for the pull itself" is false in that mode, and `/health/ready`
+  would say `BYPASSED` on camera.
+- **Never record against `cre/cmd/localgateway`.** It runs the same handler code, but there is no
+  enclave and no attestation. Segment 4's confidentiality claim requires a deployed Confidential
+  Workflow. (If deploy access hasn't come through by recording day, the honest substitute is to
+  show `cre workflow simulate` producing the signed verdict and say plainly that the workflow is
+  simulated pending private-beta enrolment — that is a far better look than implying otherwise.)
 
 ---
 
@@ -55,8 +65,11 @@ Screen: the JSON verdict response, full-screen, scrolled slowly.
 > redaction step — the CRE enclave's output type has no field for any of that. We wrote a test
 > that fails the build the moment anyone adds one."
 
-(Optional: briefly show `cre/workflow/types.go`'s `Verdict` struct and
-`TestVerdict_NeverExposesRestrictedFields` passing.)
+(Optional, and strong: show `cre/workflow/types.go`'s `Verdict` struct, then run
+`go test ./hardpull/...` and point at
+`TestOnPullRequest_NeverLeaksPlaintextOrFurnisherIdentity` passing — it runs the real handler
+inside the SDK's TEE runtime and asserts the plaintext principal, the furnisher id, the prior
+puller id and both private keys appear in neither the verdict nor any enclave log.)
 
 ### 5. HCS log and MCP query (1:55–2:25)
 
@@ -85,11 +98,20 @@ Plain text on screen, read aloud, no music:
 - [ ] `SEPOLIA_RPC_URL` + funded `DEPLOYER_PRIVATE_KEY`, contracts deployed via
       `contracts/script/Deploy.s.sol` (real Sepolia, not Anvil)
 - [ ] Subgraph deployed to Studio for both manifests, `SUBGRAPH_URL`/`SUBGRAPH_SEPOLIA_URL` set
-- [ ] Chainlink CRE account (`cre login`), workflow deployed, `CRE_WORKFLOW_URL` set
+- [ ] Chainlink CRE **deploy access** (`cre account access` — Confidential Workflows is private
+      beta; simulation already works without it), workflow deployed, `CRE_GATEWAY_URL` +
+      `CRE_WORKFLOW_ID` set and `HARDPULL_X402_MODE` **unset**
 - [ ] Funded Hedera testnet operator account, HCS topic created
       (`api/src/scripts/create-hcs-topic.ts`), `HEDERA_HCS_TOPIC_ID` set
 - [ ] A reachable x402 facilitator with a funded signer for `hedera:testnet`
-- [ ] A demo subject registered (World ID or the `cast send registerSubject` path documented in
-      `api/README.md`), with Lender B's agent identity granted consent via the console file page
-- [ ] Run the full scenario once, unrecorded, per `docs/plan.md` T-090's "three consecutive clean
-      runs" gate, before recording for real
+- [ ] `cd cre && go run ./cmd/keygen` run **before** deploying contracts — `creSigner` is
+      immutable, and the workflow public key must reach `api/.env` and both front-ends
+      (`node scripts/sync-deployments.mjs` does the fan-out)
+- [ ] A demo subject registered (World ID, or
+      `pnpm --filter @hardpull/api exec tsx src/scripts/seed-demo-subject.ts`), with Lender B's
+      agent identity granted consent via the console file page — note the returned `grantId`,
+      which is the `consentToken` Lender B must paste in
+- [ ] `curl $API/health/ready` shows every dependency configured and `payment: enforced` —
+      this is the single check that proves nothing is bypassed
+- [ ] `pnpm --filter @hardpull/api exec tsx src/scripts/e2e-scenario.ts --runs 3` passes 3/3
+      against the *deployed* stack, per T-090, before recording for real

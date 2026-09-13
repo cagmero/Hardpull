@@ -3,68 +3,107 @@
 Chainlink CRE Confidential Workflow — the confidential join. The only component that ever sees
 plaintext position data.
 
-**Highest schedule risk in the project** (`docs/plan.md` WS-1, gate T-014). Status as of this
-commit: the workflow builds successfully against the real, public `cre-sdk-go` and compiles to a
-genuine WASM binary. It has **not** been run through `cre workflow simulate` or deployed, because
-both require an authenticated Chainlink CRE account (`cre login`) that only you can provide.
-Everything below states plainly what's verified and what isn't.
+**Status: T-014 gate CLOSED.** `cre workflow simulate` runs the real workflow and returns a
+signed `CRITICAL` verdict for the stacking scenario in `docs/spec.md` #8. See
+`docs/DECISIONS.md` for the full record, including the two bugs that only surfaced by running it.
+What is still outstanding is **deploy access** (`cre account access`) — Confidential Workflows is
+in private beta, and enrolment gates deployment only, not simulation.
 
-## What's real here
+## Layout
 
-This is not a mockup against an imagined API — every type and function below was confirmed
-against the actual `github.com/smartcontractkit/cre-sdk-go` source (v1.19.0) and its
-`capabilities/networking/http` submodule (v1.3.0), both public Go modules:
+This is a CRE project, laid out the way `cre init` generates one:
 
-- `workflow/` — pure Go, no CRE dependency, fully unit-tested (`go test ./workflow/...`):
-  - `rules.go` — the deterministic stacking rules from `docs/spec.md` #6.5, with 21 table-driven
-    cases covering every branch and boundary (T-040's ≥20-case requirement)
-  - `commitment.go` — commitment verification (T-041): recomputes `keccak256(ciphertext)` and
-    rejects mismatches without failing the whole batch
-  - `sealedbox.go` — a real implementation of libsodium's `crypto_box_seal` (X25519 + XSalsa20-
-    Poly1305 + BLAKE2b nonce derivation), matching `docs/architecture.md` #3.3's encryption
-    scheme exactly. Round-trip, wrong-key, and tampered-ciphertext cases are all tested, and
-    `cmd/interop` proves it's byte-for-byte compatible with the TypeScript furnisher-side twin
-    in `packages/types/src/sealedbox.ts` -- a message sealed by one was opened by the other, in
-    both directions, with a real generated keypair. This is the check that actually matters:
-    two independent implementations of the same spec can silently diverge without it.
-  - `types.go` — `Verdict` has no field for furnisher identity, exact principal, rate, maturity,
-    or prior puller identity (T-042). `TestVerdict_NeverExposesRestrictedFields` inspects the
-    struct via reflection and fails the build if anyone ever adds one.
-- `main.go`, `wire.go`, `signing.go` (`//go:build wasip1`) — the actual CRE workflow:
-  - `InitWorkflow` registers `cre.HandlerInTee` (confidential execution) on an `http.Trigger`,
-    matching `docs.chain.link/cre/concepts/confidential-workflows`
-  - `onPullRequest` runs inside the `cre.TeeRuntime`: fetches the workflow's X25519 private key
-    via `runtime.GetSecret`, decrypts and verifies each furnished record, merges in the public
-    positions and inquiry history the API already fetched from the subgraph, calls
-    `workflow.Evaluate`, and signs the result
+```
+cre/
+├── project.yaml              # RPC targets per environment
+├── secrets.yaml              # secret id -> env var mapping
+├── .env                      # the secret values (gitignored, written by cmd/keygen)
+├── hardpull/                 # the workflow
+│   ├── main.go               # //go:build wasip1 -- the WASM entry point, and ONLY this
+│   ├── workflow.go           # Config, onPullRequest (the TEE handler), InitWorkflow
+│   ├── wire.go               # JSON DTOs for the HTTP trigger
+│   ├── signing.go            # verdict signing for VerdictAttestations.sol
+│   ├── workflow_test.go      # handler tests against cre/testutils' TeeRuntime
+│   ├── workflow.yaml
+│   └── config.{staging,production}.json
+├── workflow/                 # pure Go rules package -- no CRE dependency, runs anywhere
+└── cmd/
+    ├── keygen/               # generates both keypairs
+    ├── localgateway/         # serves the handler over HTTP for local end-to-end runs
+    └── interop/              # proves the Go and TypeScript sealed-box implementations match
+```
 
-## What's a deliberate simplification
+Only `main.go` carries the `wasip1` build tag. Everything else builds on the host too — which is
+what makes the confidential handler itself unit-testable rather than only the rules underneath it.
 
-- **Verdict signing uses a single secp256k1 secret**, not DON-consensus report signing
-  (`cre.GenerateReport` / `TeeRuntime.ReportFromDon`, verified onchain via a Keystone Forwarder
-  contract). Real production CRE workflows use the latter; verifying it requires a live CRE
-  deployment with a deployed Forwarder, which needs the same account access blocking simulation
-  below. `VerdictAttestations.sol` recovers a single signer address via standard `ecrecover`
-  instead — an explicit, documented scope reduction, not a silent shortcut.
-- **The workflow doesn't fetch the subgraph itself.** `docs/architecture.md` #2.2 lists
-  `publicExposure[]` as an *input* the API already retrieved, not something the workflow fetches
-  over HTTP inside the TEE — so the `networking/http` capability here is used only for the
-  trigger, not an outbound fetch. (T-012's "HTTP fetch from workflow" spike task is a separate,
-  smaller proof of that capability, not part of this production path.)
-
-## What genuinely needs your action before this can run for real
-
-1. **A Chainlink CRE account.** `cre login` is required for `cre workflow simulate` and
-   `cre workflow deploy` — I cannot create or authenticate one.
-2. **The CRE CLI itself**, installed per
-   [docs.chain.link/cre/getting-started/cli-installation](https://docs.chain.link/cre/getting-started/cli-installation/macos-linux).
-3. Once logged in: `cre workflow simulate` against `config.example.json` (rename/fill in real
-   values), which is the actual T-011/T-012/T-013 spike this workstream's gate (T-014) depends on.
-
-## Local build (works today, no CRE account needed)
+## Setup
 
 ```bash
-go test ./workflow/...                        # pure business logic, no CRE runtime required
-GOOS=wasip1 GOARCH=wasm go build -o workflow.wasm .   # compiles the real workflow to WASM
-GOOS=wasip1 GOARCH=wasm go vet .
+cd cre
+go run ./cmd/keygen        # writes .env (0600); prints ONLY the public values
 ```
+
+It prints two things you need elsewhere:
+
+- the **workflow X25519 public key** — furnishers seal records to it
+  (`CRE_WORKFLOW_PUBLIC_KEY_HEX` in `api/.env`, `NEXT_PUBLIC_CRE_WORKFLOW_PUBLIC_KEY_HEX` in the
+  console and Lender A).
+- the **attestation signer address** — `VerdictAttestations.creSigner`.
+
+That second one is an ordering trap worth knowing: `creSigner` is `immutable`, so **run keygen
+before `forge script Deploy`**, or the contract has to be redeployed to match.
+
+## Test and build (no CRE account needed)
+
+```bash
+go test ./...                                          # rules + the real TEE handler
+go vet ./...
+GOOS=wasip1 GOARCH=wasm go build -o workflow.wasm ./hardpull
+```
+
+`go build ./...` fails on the `hardpull` package by design — `main()` is WASM-only, exactly as in
+Chainlink's own `hello-confidential-workflows-go` template. Use `go vet` and `go test` on the host.
+
+## Simulate (needs a logged-in CRE account, not deploy access)
+
+```bash
+cre workflow simulate hardpull \
+  --target staging-settings \
+  --non-interactive --trigger-index 0 \
+  --http-payload '{"subjectId":"0x…","proposedPrincipal":"50000","publicPositions":[…]}'
+```
+
+Note the runtime serializes the handler's return value using **Go field names**, ignoring `json`
+tags — so the response is `{"Verdict":"CRITICAL",…}`, not camelCase. `api/src/lib/creClient.ts`
+normalizes both casings rather than betting on one.
+
+## Local gateway — for end-to-end runs, NOT for confidentiality claims
+
+```bash
+go run ./cmd/localgateway     # http://127.0.0.1:8546
+```
+
+It runs the **same** handler code (same packages, same rules, same signing), so the business
+logic cannot drift from what the enclave does. It is **not a TEE**: no enclave, no attestation,
+and the process reads the workflow private key from its own environment and sees every plaintext
+it decrypts. It exists so `/v1/pull` can be exercised end to end before deploy access exists.
+
+Never present its output as evidence of the confidentiality property. That is what
+`cre workflow simulate` and a deployed Confidential Workflow are for.
+
+## A deliberate simplification
+
+Verdict signing uses a **single secp256k1 key**, not DON-consensus report signing
+(`cre.GenerateReport` / `TeeRuntime.ReportFromDon`) verified on-chain through a Keystone
+Forwarder. Verifying that path needs a live deployment with a deployed Forwarder, which needs the
+same deploy access that is still pending. `VerdictAttestations.sol` recovers a single signer with
+standard `ecrecover` instead — a documented scope reduction, not a silent shortcut.
+
+## What the enclave does and does not hide
+
+Worth stating plainly, because it is the most common misconception and the docs and video must
+not overclaim: the workflow **binary is not confidential**. It is handed to the enclave by the
+Workflow DON, so the logic is visible. What stays confidential is the **data** that logic computes
+over — the Vault DON secrets, the decrypted position records, and the intermediate values. That
+is precisely the property Hardpull needs: no lender learns another lender's book. It is not the
+same as the logic being secret, and nothing here depends on the logic being secret.

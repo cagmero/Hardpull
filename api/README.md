@@ -16,12 +16,24 @@ with a clear, typed error when unconfigured rather than silently no-op'ing.
 ## Middleware chain
 
 ```
-request-id → rate-limit → [oauth bearer] → [HMAC signature] → idempotency → route
+request-id → ip-allowlist → rate-limit → [oauth bearer] → [HMAC signature] → idempotency → route
 ```
+
+`ip-allowlist` is a no-op unless `HARDPULL_IP_ALLOWLIST` is set (comma-separated IPv4 addresses
+and CIDRs). It reads `X-Forwarded-For` only when `TRUST_PROXY=true`, because that header is
+caller-supplied — trusting it unconditionally would let anyone forge an allowed source address.
 
 `/v1/pull` additionally runs `consent → standing → x402 payment` before the handler, in that
 order, so a request is never charged if it was always going to be rejected
 (`docs/architecture.md` §2.3).
+
+## Is it actually wired up? `GET /health/ready`
+
+Every external integration is individually optional: the service starts without it and fails with
+a specific typed error at exactly the boundary that needs it. That is deliberate, but it makes
+"what works right now?" impossible to answer from outside — so this endpoint answers it, listing
+each dependency as configured/reachable and stating what each gate of `/v1/pull` will currently
+do. `GET /health` stays a bare liveness check for load balancers.
 
 ## Local dev
 
@@ -38,6 +50,33 @@ pnpm --filter @hardpull/api exec node-pg-migrate up -m src/db/migrations
 
 pnpm --filter @hardpull/api dev
 ```
+
+### Running the whole scenario locally
+
+Two switches make the full flow runnable before the external accounts exist. Both are off by
+default and both announce themselves, because an unmetered pull against a non-TEE gateway must
+never be mistaken for the real thing:
+
+```bash
+cd ../cre && go run ./cmd/keygen && go run ./cmd/localgateway   # same handler code, NOT a TEE
+# then, for the API:
+CRE_GATEWAY_URL=http://127.0.0.1:8546 CRE_WORKFLOW_ID=local HARDPULL_X402_MODE=disabled
+```
+
+`HARDPULL_X402_MODE=disabled` skips the payment gate and logs a warning on every request;
+`/health/ready` reports payment as `BYPASSED`. Never run a demo or a deployment this way.
+
+Then run the success criteria as an executable gate (`docs/plan.md` T-090):
+
+```bash
+pnpm --filter @hardpull/api exec tsx src/scripts/seed-demo-subject.ts   # a subject, sans World ID
+pnpm --filter @hardpull/api exec tsx src/scripts/e2e-scenario.ts --runs 3
+```
+
+`e2e-scenario.ts` asserts every step of `docs/spec.md` #8 — including that a second lender cannot
+reuse another lender's consent token, that the verdict body contains no furnisher identity or
+exact amount, that an idempotent replay logs no second inquiry, and that revocation takes effect
+on the next pull. Three clean runs is the gate.
 
 ## Test
 

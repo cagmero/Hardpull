@@ -46,11 +46,21 @@ one `schema.graphql`) run `graph codegen` and `graph build` cleanly against the 
 either extracted from our own compiled contracts (`forge inspect`) or hand-verified against real
 source on GitHub — not fabricated.
 
-**Not yet verified — needs a Subgraph Studio API key and real contract addresses:** actual
-deployment and indexing. Every `address`/`startBlock` in both manifests is currently a `0x0…0`
-placeholder marked `# TODO`. The cross-protocol composability proof (T-036 — one query returning
-one borrower's positions across all three protocols) needs a live index to run against and is not
-yet captured.
+**Mainnet addresses and start blocks are now verified, not placeholders.** Aave v3 Pool
+(`0x8787…4E9e`, block 16291127) and Morpho Blue (`0xBBBB…FFCb`, block 18883124) were each
+confirmed by calling a method only the real contract could answer, and their deployment blocks
+found by binary-searching an archive node for the first block with code. Maple uses
+`fixedTermLoanFactoryV2` (`0xeA06…dBC6`, block 18777478) — the V1 factory reports
+`defaultVersion() == 0`, i.e. retired, under the same `mapleGlobals`. See `subgraph/README.md`
+for the full table.
+
+**Not yet verified — needs a Subgraph Studio API key:** actual deployment and indexing. The
+Sepolia manifest's addresses are still zeros by design; `node scripts/sync-deployments.mjs`
+fills them from the deploy output. The cross-protocol composability proof (T-036 — one query
+returning one borrower's positions across all three protocols) needs a live index to run
+against and is not yet captured. Maple origination coverage is the least certain of the three:
+the address and `InstanceDeployed` ABI are confirmed, but no live event was observed in the
+block windows sampled, so it stays unproven until the subgraph indexes.
 
 ## MCP server against the subgraph
 

@@ -38,8 +38,15 @@ export async function getRecentInquiries(subjectId: string, days: number): Promi
   return body.inquiries.filter((i) => new Date(i.occurred_at).getTime() >= cutoff);
 }
 
-export async function checkStackingRisk(subjectId: string, proposedPrincipal: string): Promise<unknown> {
+// consentToken is the grantId the borrower received from POST /v1/consent and handed to this
+// puller. There is no way to synthesize one: without a grant naming this MCP server's own
+// furnisherId, the pull is refused at the consent gate, which is the intended behavior.
+export async function checkStackingRisk(
+  subjectId: string,
+  proposedPrincipal: string,
+  consentToken: string,
+): Promise<unknown> {
   const token = await getAccessToken();
   const client = new HardpullClient(API_URL, token);
-  return client.pull({ subjectId, proposedPrincipal, currency: "USD", consentToken: "mcp" });
+  return client.pull({ subjectId, proposedPrincipal, currency: "USD", consentToken });
 }

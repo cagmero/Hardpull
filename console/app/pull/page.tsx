@@ -8,7 +8,7 @@ export default function PullPage() {
   const [subjectId, setSubjectId] = useState("");
   const [proposedPrincipal, setProposedPrincipal] = useState("50000");
   const [currency, setCurrency] = useState("USD");
-  const [consentToken, setConsentToken] = useState("demo");
+  const [consentToken, setConsentToken] = useState("");
   const [paymentHeader, setPaymentHeader] = useState("");
   const [result, setResult] = useState<unknown>(null);
   const [loading, setLoading] = useState(false);
@@ -60,7 +60,8 @@ export default function PullPage() {
         <input value={currency} onChange={(e) => setCurrency(e.target.value)} />
       </label>
       <label>
-        Consent token (opaque handle; the pull's actual consent check is the puller's identity + subjectId, not this value)
+        Consent token — the grantId the borrower received from POST /v1/consent. The pull is
+        rejected unless this names a live, unexhausted grant for this exact subject and puller.
         <input value={consentToken} onChange={(e) => setConsentToken(e.target.value)} style={{ width: "100%" }} />
       </label>
       <label>
@@ -68,7 +69,7 @@ export default function PullPage() {
         <input value={paymentHeader} onChange={(e) => setPaymentHeader(e.target.value)} style={{ width: "100%" }} />
       </label>
 
-      <button onClick={pull} disabled={loading}>
+      <button onClick={pull} disabled={loading || !consentToken}>
         {loading ? "Pulling..." : "Pull"}
       </button>
 

@@ -54,11 +54,14 @@ server.registerTool(
     inputSchema: {
       subjectId: z.string(),
       proposedPrincipal: z.string().describe("Proposed loan principal as a decimal string"),
+      consentToken: z
+        .string()
+        .describe("The grantId the borrower received from POST /v1/consent and shared with this puller"),
     },
   },
-  async ({ subjectId, proposedPrincipal }) => {
+  async ({ subjectId, proposedPrincipal, consentToken }) => {
     try {
-      return textResult(await checkStackingRisk(subjectId, proposedPrincipal));
+      return textResult(await checkStackingRisk(subjectId, proposedPrincipal, consentToken));
     } catch (err) {
       return errorResult(err);
     }

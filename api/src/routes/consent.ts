@@ -126,27 +126,50 @@ consent.delete("/:grantId", async (c) => {
   return c.json({ grantId, revoked: true });
 });
 
-// Used by /v1/pull's short-circuit chain (docs/architecture.md #2.3 step 2) -- exported rather
-// than duplicated so the consent check pull.ts runs is exactly this one.
-export async function hasValidConsent(subjectId: string, pullerId: string): Promise<boolean> {
-  const result = await pool.query<{ pulls_used: number; max_pulls: number }>(
-    `select pulls_used, max_pulls from consent_grants
-     where subject_id = $1 and puller_id = $2 and revoked_at is null and expires_at > now()
-     order by created_at desc limit 1`,
-    [subjectId, pullerId],
-  );
-  const grant = result.rows[0];
-  return !!grant && grant.pulls_used < grant.max_pulls;
+// consentToken is the opaque handle POST /v1/consent returned to the borrower as `grantId`;
+// the borrower passes it to the lender out of band, and the lender presents it on every pull.
+// It is a UUID, so anything else cannot name a grant -- reject it before it reaches Postgres,
+// where a malformed uuid would raise instead of simply not matching.
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface ValidConsentGrant {
+  id: string;
+  pullsUsed: number;
+  maxPulls: number;
 }
 
-export async function consumeConsent(subjectId: string, pullerId: string): Promise<void> {
-  await pool.query(
-    `update consent_grants set pulls_used = pulls_used + 1
-     where id = (
-       select id from consent_grants
-       where subject_id = $1 and puller_id = $2 and revoked_at is null and expires_at > now()
-       order by created_at desc limit 1
-     )`,
-    [subjectId, pullerId],
+// Used by /v1/pull's short-circuit chain (docs/architecture.md #2.3 step 2) -- exported rather
+// than duplicated so the consent check pull.ts runs is exactly this one.
+//
+// All four conditions from spec.md #6.3 are checked together, and the grant must belong to BOTH
+// this subject and this puller: presenting another lender's grant token, or a token for another
+// subject, matches no row. The pull is rejected before any compute or charge happens.
+export async function findValidConsent(
+  subjectId: string,
+  pullerId: string,
+  consentToken: string,
+): Promise<ValidConsentGrant | null> {
+  if (!UUID_PATTERN.test(consentToken)) return null;
+
+  const result = await pool.query<{ id: string; pulls_used: number; max_pulls: number }>(
+    `select id, pulls_used, max_pulls from consent_grants
+     where id = $1 and subject_id = $2 and puller_id = $3
+       and revoked_at is null and expires_at > now()`,
+    [consentToken, subjectId, pullerId],
   );
+
+  const grant = result.rows[0];
+  if (!grant || grant.pulls_used >= grant.max_pulls) return null;
+  return { id: grant.id, pullsUsed: grant.pulls_used, maxPulls: grant.max_pulls };
+}
+
+// Consumes one pull against the exact grant that authorized it. Conditional on pulls_used still
+// being below max_pulls so two concurrent pulls on a single-use grant can't both spend it.
+export async function consumeConsent(grantId: string): Promise<boolean> {
+  const result = await pool.query(
+    `update consent_grants set pulls_used = pulls_used + 1
+     where id = $1 and revoked_at is null and pulls_used < max_pulls`,
+    [grantId],
+  );
+  return (result.rowCount ?? 0) > 0;
 }

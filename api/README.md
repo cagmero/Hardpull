@@ -47,23 +47,34 @@ DATABASE_URL=postgres://postgres:hardpull@localhost:55432/hardpull \
   pnpm --filter @hardpull/api test                # also runs Postgres-backed integration tests
 ```
 
+## Scheduled jobs
+
+Neither is a long-running daemon — run each on a schedule (cron, or your platform's scheduler)
+and let it exit:
+
+```bash
+# Every minute: delivers due webhook_deliveries rows, retrying on a schedule spanning ~24h
+pnpm --filter @hardpull/api exec tsx src/scripts/deliver-webhooks.ts
+
+# Hourly: compares Postgres to onchain state, exits non-zero on drift (docs/plan.md T-05A)
+pnpm --filter @hardpull/api exec tsx src/scripts/reconcile.ts
+```
+
+Both were verified live against Anvil + Postgres: `reconcile.ts` correctly detects both a
+standing-count drift and a commitment-version drift injected directly into Postgres; the webhook
+worker correctly delivers to a real HTTP receiver (with a verified HMAC signature) and correctly
+schedules a retry with an incremented `attempt_count` when the receiver is unreachable.
+
 ## Known gaps (flagged in code, collected here for visibility)
 
-- **x402 settlement ordering** (`src/routes/pull.ts`): the x402 payment is settled in
-  `requireX402Payment`'s after-`next()` hook, which runs after the route handler returns. If the
-  CRE call inside the handler fails, the request has already returned before settlement — so a
-  failed CRE call and a failed settlement aren't currently sequenced relative to each other. A
-  correct implementation calls the CRE workflow *before* triggering settlement, not after.
-- **Webhook retries** (`src/lib/webhooks.ts`) span roughly 1 hour, not the 24h spec.md #6.8
-  describes — that needs a durable, persisted retry queue (a job table + a cron worker), not
-  in-process `setTimeout` chains.
-- **Reconciliation** (`src/scripts/reconcile.ts`) compares a Postgres proxy count to the
-  contract's computed `pullAllowance`, not an inverted apples-to-apples value — it needs
-  `ReciprocityLedger`'s `K`/`BASE_ALLOWANCE` to translate one into the other correctly.
-- **ENSv2 Enhanced Access Control** (`src/routes/consent.ts`): consent grants are Postgres-only
-  for now. Wiring in the real ENSv2 EAC contracts is T-071, tracked separately.
-- **CRE workflow request signing** (`src/lib/creClient.ts`): CRE HTTP triggers authenticate
-  callers via signed requests against the workflow's `AuthorizedKeys`. That signing isn't
-  implemented yet — there's no deployed workflow to sign against and verify locally.
 - **World ID** (`src/lib/worldid.ts`): the real Worldcoin verify endpoint is called correctly,
   but needs `WORLD_ID_APP_ID`/`WORLD_ID_ACTION_ID` from a registered Developer Portal app.
+- **CRE workflow request signing** (`src/lib/creClient.ts`): CRE HTTP triggers authenticate
+  callers via signed requests against the workflow's `AuthorizedKeys`. Nothing to sign against or
+  verify locally without a deployed workflow — see `cre/README.md`.
+
+x402 settlement ordering (it was already correct — see `src/routes/pull.ts`'s comment),
+webhook retry durability (now a persisted queue, `src/scripts/deliver-webhooks.ts`), and
+reconciliation drift math (now an exact comparison via `freshRecordCount`/`versionCount`, not a
+proxy) were all previously listed here and have since been addressed or corrected — see
+`docs/DECISIONS.md`'s entry on this pass. ENSv2 Enhanced Access Control is still pending.

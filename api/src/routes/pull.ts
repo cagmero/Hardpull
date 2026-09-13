@@ -85,11 +85,13 @@ pull.post("/", async (c) => {
     });
   } catch (err) {
     // architecture.md #5: "CRE workflow unavailable -> return 503, do not charge, queue retry,
-    // never return a stale verdict." The x402 settlement above already ran on this request
-    // path though (it happens in requireX402Payment's after-next hook, which fires after this
-    // handler returns) -- so a genuine production implementation needs the CRE call to happen
-    // *before* settlement fires, not after. Flagging this ordering gap explicitly rather than
-    // leaving it implicit: see api/README.md "Known gaps".
+    // never return a stale verdict." requireX402Payment's after-next() settlement hook checks
+    // `c.res.status < 400` before calling processSettlement, so this 503 correctly skips
+    // settlement -- the client's payment authorization is verified but never actually executed.
+    // The one edge case this doesn't cover (and can't, without escrow): CRE succeeds and this
+    // handler returns 200 with the verdict, but settlement itself then fails. The client keeps
+    // the verdict, unpaid. That's the standard x402 "settle after fulfillment" trade-off -- it
+    // fails toward giving away service, never toward charging without delivering it.
     return c.json({ error: "CRE_UNAVAILABLE", message: (err as Error).message }, 503);
   }
 

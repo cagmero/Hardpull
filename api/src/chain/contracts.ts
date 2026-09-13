@@ -75,6 +75,42 @@ export async function pullAllowanceOnChain(furnisherId: `0x${string}`): Promise<
   })) as bigint;
 }
 
+// Direct read of the contract's own fresh-record count -- lets the reconciliation job compare
+// like-for-like against the Postgres proxy count instead of trying to invert pullAllowance()'s
+// formula (docs/plan.md T-05A).
+export async function freshRecordCountOnChain(furnisherId: `0x${string}`): Promise<bigint> {
+  const { ReciprocityLedger } = deployments();
+  return (await publicClient.readContract({
+    address: ReciprocityLedger,
+    abi: ReciprocityLedgerAbi,
+    functionName: "freshRecordCount",
+    args: [furnisherId],
+  })) as bigint;
+}
+
+export async function freshWindowSecondsOnChain(): Promise<bigint> {
+  const { ReciprocityLedger } = deployments();
+  return (await publicClient.readContract({
+    address: ReciprocityLedger,
+    abi: ReciprocityLedgerAbi,
+    functionName: "freshWindow",
+  })) as bigint;
+}
+
+export async function versionCountOnChain(
+  subjectId: `0x${string}`,
+  furnisherId: `0x${string}`,
+  recordId: `0x${string}`,
+): Promise<bigint> {
+  const { ExposureCommitments } = deployments();
+  return (await publicClient.readContract({
+    address: ExposureCommitments,
+    abi: ExposureCommitmentsAbi,
+    functionName: "versionCount",
+    args: [subjectId, furnisherId, recordId],
+  })) as bigint;
+}
+
 export async function attestVerdictOnChain(
   inquiryId: `0x${string}`,
   verdictHash: `0x${string}`,

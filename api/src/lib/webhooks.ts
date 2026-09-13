@@ -8,52 +8,31 @@ export type WebhookEvent =
   | "subject.default_reported"
   | "standing.changed";
 
-interface Subscription {
-  id: string;
-  url: string;
-  secret: string;
-}
+// Retry schedule spans ~24h (spec.md #6.8), enforced by the worker in
+// src/scripts/deliver-webhooks.ts rather than an in-process setTimeout chain -- that couldn't
+// survive a process restart and only ever spanned about an hour. Run the worker on a schedule
+// (e.g. every minute) the same way src/scripts/reconcile.ts is run hourly.
+export const RETRY_DELAYS_SECONDS = [0, 60, 5 * 60, 30 * 60, 2 * 60 * 60, 6 * 60 * 60, 24 * 60 * 60];
 
-const RETRY_DELAYS_MS = [1_000, 5_000, 30_000, 5 * 60_000, 60 * 60_000]; // ~1h total, not the
-// full 24h spec.md #6.8 calls for -- a durable retry queue (persisted job + cron worker) is
-// needed for that and is out of scope for this pass. See api/README.md "Known gaps".
-
-async function deliverOnce(subscription: Subscription, event: WebhookEvent, payload: object): Promise<boolean> {
-  const body = JSON.stringify({ event, data: payload });
-  const signature = signBody(body, subscription.secret);
-
-  try {
-    const res = await fetch(subscription.url, {
-      method: "POST",
-      headers: { "content-type": "application/json", "hardpull-signature": signature },
-      body,
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function deliverWithRetry(subscription: Subscription, event: WebhookEvent, payload: object): Promise<void> {
-  for (const delay of [0, ...RETRY_DELAYS_MS]) {
-    if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
-    if (await deliverOnce(subscription, event, payload)) return;
-  }
-  console.error(`Webhook delivery exhausted retries: ${event} -> ${subscription.url}`);
-}
-
-// Fires event to every active subscription for a furnisher that's subscribed to it
-// (docs/spec.md #6.8, docs/plan.md T-059). Fire-and-forget: callers don't await delivery.
+// Enqueues a delivery row per active subscription matching this event (docs/spec.md #6.8,
+// docs/plan.md T-059). Fire-and-forget from the caller's perspective: the actual HTTP delivery
+// happens in the worker, not here, so a slow or unreachable webhook endpoint never blocks the
+// request that triggered it.
 export function dispatchWebhook(furnisherId: string, event: WebhookEvent, payload: object): void {
   pool
-    .query<Subscription>(
-      "select id, url, secret from webhook_subscriptions where furnisher_id = $1 and active and $2 = any(events)",
+    .query<{ id: string }>(
+      "select id from webhook_subscriptions where furnisher_id = $1 and active and $2 = any(events)",
       [furnisherId, event],
     )
     .then((result) => {
-      for (const subscription of result.rows) {
-        void deliverWithRetry(subscription, event, payload);
-      }
+      if (result.rows.length === 0) return;
+      const values = result.rows.map((_, i) => `($${i * 3 + 1}, $${i * 3 + 2}, $${i * 3 + 3})`).join(", ");
+      const params = result.rows.flatMap((row) => [row.id, event, JSON.stringify(payload)]);
+      return pool.query(`insert into webhook_deliveries (subscription_id, event, payload) values ${values}`, params);
     })
-    .catch((err) => console.error("Failed to look up webhook subscriptions", err));
+    .catch((err) => console.error("Failed to enqueue webhook delivery", err));
+}
+
+export function signWebhookBody(body: string, secret: string): string {
+  return signBody(body, secret);
 }

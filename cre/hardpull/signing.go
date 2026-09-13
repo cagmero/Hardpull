@@ -17,15 +17,17 @@ import (
 // TeeRuntime.ReportFromDon), verified onchain via a KeystoneForwarder contract -- see
 // cre/README.md for why this hackathon build uses a single secp256k1 key instead: verifying a
 // real Keystone Forwarder requires a live CRE deployment we don't have access to.
-func signVerdict(v workflow.Verdict, signerKeyHex string) (string, error) {
+// Returns the signature alongside the exact payload bytes it committed to, so callers verify
+// against what was actually signed instead of re-marshalling and hoping the bytes match.
+func signVerdict(v workflow.Verdict, signerKeyHex string) (string, []byte, error) {
 	payload, err := json.Marshal(v)
 	if err != nil {
-		return "", fmt.Errorf("marshal verdict: %w", err)
+		return "", nil, fmt.Errorf("marshal verdict: %w", err)
 	}
 
 	privateKey, err := crypto.HexToECDSA(trimHexPrefix(signerKeyHex))
 	if err != nil {
-		return "", fmt.Errorf("parse signer key: %w", err)
+		return "", nil, fmt.Errorf("parse signer key: %w", err)
 	}
 
 	digest := crypto.Keccak256(payload)
@@ -33,12 +35,12 @@ func signVerdict(v workflow.Verdict, signerKeyHex string) (string, error) {
 
 	signature, err := crypto.Sign(ethDigest, privateKey)
 	if err != nil {
-		return "", fmt.Errorf("sign: %w", err)
+		return "", nil, fmt.Errorf("sign: %w", err)
 	}
 	// go-ethereum returns v in {0,1}; VerdictAttestations.sol's ECDSA.recover expects {27,28}.
 	signature[64] += 27
 
-	return "0x" + hexEncode(signature), nil
+	return "0x" + hexEncode(signature), payload, nil
 }
 
 // signerAddress derives the address a given secp256k1 secret would sign as, useful for

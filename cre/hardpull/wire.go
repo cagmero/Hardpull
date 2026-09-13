@@ -112,9 +112,21 @@ type signedVerdict struct {
 	ComputedAt             string                `json:"computedAt"`
 	Attestation            string                `json:"attestation"`
 
+	// CanonicalPayload is the exact byte sequence, hex-encoded, that Attestation signs: the
+	// json.Marshal of the workflow.Verdict. VerdictAttestations.sol checks
+	// ecrecover(toEthSignedMessageHash(keccak256(payload))) == creSigner, so a caller needs
+	// these exact bytes -- and re-deriving them across a language boundary is how that breaks.
+	// It did break: the API hashed JSON.stringify() of the whole response, a different byte
+	// string, and every attest() call reverted InvalidSignature() while the pull still
+	// returned 200 because the write is best-effort.
+	//
+	// Publishing it discloses nothing new -- it is the verdict the puller already holds -- and
+	// it makes the attestation independently verifiable, which is the point of writing it
+	// on-chain at all.
+	CanonicalPayload string `json:"canonicalPayload"`
 }
 
-func newSignedVerdict(v workflow.Verdict, attestation string) *signedVerdict {
+func newSignedVerdict(v workflow.Verdict, attestation string, canonicalPayload []byte) *signedVerdict {
 	return &signedVerdict{
 		Verdict:                v.Verdict,
 		ExposureBucket:         v.ExposureBucket,
@@ -124,6 +136,7 @@ func newSignedVerdict(v workflow.Verdict, attestation string) *signedVerdict {
 		StackingFlags:          v.StackingFlags,
 		ComputedAt:             v.ComputedAt,
 		Attestation:            attestation,
+		CanonicalPayload:       hexEncode(canonicalPayload),
 	}
 }
 

@@ -6,7 +6,7 @@ import { pool } from "../db/pool.js";
 import { requireBearerAuth } from "../middleware/auth.js";
 import { idempotency } from "../middleware/idempotency.js";
 import { requireX402Payment } from "../lib/x402.js";
-import { hasValidConsent, consumeConsent } from "./consent.js";
+import { findValidConsent, consumeConsent } from "./consent.js";
 import { hasSufficientStanding } from "../lib/standing.js";
 import { invokeCreWorkflow } from "../lib/creClient.js";
 import { getPublicExposure } from "../lib/subgraphClient.js";
@@ -27,13 +27,25 @@ const pullRequestSchema = z.object({
 // Each gate returns before the next one runs, and none of them run compute, so a caller is
 // never charged for a request that was always going to be rejected (docs/architecture.md #5).
 const consentAndStandingGate: MiddlewareHandler = async (c, next) => {
-  const body = await c.req.json();
-  const { subjectId } = body;
+  const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+  const subjectId = typeof body.subjectId === "string" ? body.subjectId : "";
+  const consentToken = typeof body.consentToken === "string" ? body.consentToken : "";
   const furnisherId = c.get("furnisherId") as Hex;
 
-  if (!(await hasValidConsent(subjectId, furnisherId))) {
-    return c.json({ error: "CONSENT_MISSING", message: "No valid, unexpired consent grant for this subject" }, 403);
+  // The token must name a live grant belonging to this exact (subject, puller) pair -- see
+  // findValidConsent. A token for someone else's grant, an expired one, a revoked one, or an
+  // exhausted one all land here identically, and none of them reach compute.
+  const grant = await findValidConsent(subjectId, furnisherId, consentToken);
+  if (!grant) {
+    return c.json(
+      {
+        error: "CONSENT_MISSING",
+        message: "No valid, unexpired, unexhausted consent grant matches this consentToken for this subject and puller",
+      },
+      403,
+    );
   }
+  c.set("consentGrantId", grant.id);
 
   if (!(await hasSufficientStanding(furnisherId))) {
     return c.json({ error: "RECIPROCITY_INSUFFICIENT", message: "Pull allowance exhausted for today" }, 402);
@@ -41,6 +53,12 @@ const consentAndStandingGate: MiddlewareHandler = async (c, next) => {
 
   await next();
 };
+
+declare module "hono" {
+  interface ContextVariableMap {
+    consentGrantId: string;
+  }
+}
 
 pull.use("/", requireBearerAuth, idempotency, consentAndStandingGate, requireX402Payment);
 
@@ -112,7 +130,12 @@ pull.post("/", async (c) => {
     ],
   );
 
-  await consumeConsent(subjectId, furnisherId);
+  // The gate already confirmed headroom, so this only returns false if the grant was revoked or
+  // exhausted in the window between the two -- rare, but worth seeing rather than swallowing.
+  const grantId = c.get("consentGrantId");
+  if (!(await consumeConsent(grantId))) {
+    console.warn(`consent grant ${grantId} could not be consumed (revoked or exhausted mid-request)`);
+  }
 
   if (signedVerdict.verdict === "CRITICAL") {
     dispatchWebhook(furnisherId, "stacking.detected", {
@@ -123,14 +146,27 @@ pull.post("/", async (c) => {
   }
 
   // 6. Persist + attest onchain + log to HCS.
-  const verdictHash = keccak256(toHex(JSON.stringify(signedVerdict)));
-  try {
-    await attestVerdictOnChain(inquiryIdHex, verdictHash, signedVerdict.attestation as Hex);
-  } catch (err) {
-    // Attestation failing doesn't invalidate a verdict the puller already received and was
-    // charged for -- log and continue, matching architecture.md's "never return a stale
-    // verdict" without retroactively un-answering a request that already succeeded.
-    console.error("VerdictAttestations write failed", err);
+  //
+  // The hash MUST be keccak256 of the exact bytes the enclave signed, which the workflow
+  // publishes as canonicalPayload. Hashing a re-serialization of the response instead produces
+  // a different digest, ecrecover returns a different address, and VerdictAttestations.attest()
+  // reverts InvalidSignature() -- which is precisely what happened until this was fixed, and
+  // went unnoticed because the write is best-effort and the pull still returned 200.
+  if (signedVerdict.canonicalPayload) {
+    const verdictHash = keccak256(`0x${signedVerdict.canonicalPayload.replace(/^0x/, "")}` as Hex);
+    try {
+      await attestVerdictOnChain(inquiryIdHex, verdictHash, signedVerdict.attestation as Hex);
+    } catch (err) {
+      // A failed attestation doesn't invalidate a verdict the puller already received and paid
+      // for -- log and continue, matching architecture.md's "never return a stale verdict"
+      // without retroactively un-answering a request that already succeeded.
+      console.error("VerdictAttestations write failed", err);
+    }
+  } else {
+    console.error(
+      "CRE workflow returned no canonicalPayload; skipping the attestation write rather than " +
+        "sending a hash that cannot verify. Upgrade the deployed workflow (cre/hardpull/wire.go).",
+    );
   }
 
   try {
@@ -145,5 +181,8 @@ pull.post("/", async (c) => {
     console.error("HCS log submission failed", err);
   }
 
-  return c.json(signedVerdict, 200);
+  // canonicalPayload is an internal detail of the attestation write; the documented response
+  // shape (api/openapi.yaml) does not include it.
+  const { canonicalPayload: _canonicalPayload, ...responseBody } = signedVerdict;
+  return c.json(responseBody, 200);
 });

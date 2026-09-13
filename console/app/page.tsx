@@ -13,6 +13,9 @@ export default function Home() {
           <Link href="/furnish">Furnish</Link> — register as a furnisher and submit a position
         </li>
         <li>
+          <Link href="/standing">Standing</Link> — check reciprocity standing and pull allowance
+        </li>
+        <li>
           <Link href="/pull">Pull</Link> — request an exposure verdict for a subject
         </li>
         <li>

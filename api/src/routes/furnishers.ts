@@ -6,6 +6,7 @@ import { pool } from "../db/pool.js";
 import { generateClientCredentials, hashClientSecret } from "../lib/credentials.js";
 import { getWalletClient } from "../chain/clients.js";
 import { deployments } from "../chain/clients.js";
+import { pullAllowanceOnChain, freshRecordCountOnChain, isFurnisherActive } from "../chain/contracts.js";
 import FurnisherRegistryAbi from "../chain/abis/FurnisherRegistry.json" with { type: "json" };
 
 export const furnishers = new Hono();
@@ -60,4 +61,31 @@ furnishers.post("/", async (c) => {
     { furnisherId, clientId, clientSecret, hmacSecret, ensNode, txHash },
     201,
   );
+});
+
+// spec.md #6.7.4: "Standing is readable onchain from ReciprocityLedger -- a lender can prove
+// its own contribution." Public, unauthenticated, read-only -- a furnisher (or anyone) can check
+// standing without a bearer token, the same way anyone could call the contract's view functions
+// directly. Powers the console's standing dashboard (docs/plan.md T-080).
+furnishers.get("/:furnisherId/standing", async (c) => {
+  const furnisherId = c.req.param("furnisherId") as `0x${string}`;
+  if (!/^0x[a-fA-F0-9]{64}$/.test(furnisherId)) {
+    return c.json({ error: "INVALID_REQUEST", message: "furnisherId must be a 32-byte hex value" }, 400);
+  }
+
+  try {
+    const [active, allowance, freshRecordCount] = await Promise.all([
+      isFurnisherActive(furnisherId),
+      pullAllowanceOnChain(furnisherId),
+      freshRecordCountOnChain(furnisherId),
+    ]);
+    return c.json({
+      furnisherId,
+      active,
+      pullAllowance: allowance.toString(),
+      freshRecordCount: freshRecordCount.toString(),
+    });
+  } catch (err) {
+    return c.json({ error: "CHAIN_UNAVAILABLE", message: (err as Error).message }, 503);
+  }
 });

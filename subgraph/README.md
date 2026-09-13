@@ -70,6 +70,10 @@ shape across all four sources.
 
 ## Setup
 
+The Studio subgraph slugs are `hardpull_mainnet` and `hardpull_sepolia` (underscores, matching
+what was actually created in Studio). `graph auth` needs the deploy key from Subgraph Studio,
+which this repo reads from `subgraph/.env` as `GRAPH_DEPLOY_KEY`.
+
 ```bash
 pnpm --filter @hardpull/subgraph codegen:mainnet && pnpm --filter @hardpull/subgraph build:mainnet
 pnpm --filter @hardpull/subgraph codegen:sepolia && pnpm --filter @hardpull/subgraph build:sepolia

@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { requestId } from "./middleware/requestId.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 import { ipAllowlist } from "./middleware/ipAllowlist.js";
+import { corsMiddleware } from "./middleware/cors.js";
 import { health } from "./routes/health.js";
 import { oauth } from "./routes/oauth.js";
 import { furnishers } from "./routes/furnishers.js";
@@ -16,6 +17,9 @@ import { webhooks } from "./routes/webhooks.js";
 const app = new Hono();
 
 app.use("*", requestId);
+// Before the allowlist and the limiter: a rejected preflight should still carry CORS headers,
+// or the browser reports an opaque network error instead of the real reason.
+app.use("*", corsMiddleware);
 app.use("*", ipAllowlist);
 app.use("*", rateLimit(120, 60));
 

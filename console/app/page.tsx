@@ -7,6 +7,9 @@ export default function Home() {
       <p>A confidential exposure registry for onchain credit.</p>
       <ul>
         <li>
+          <Link href="/verify">Verify</Link> — bind a wallet to a subjectId with World ID
+        </li>
+        <li>
           <Link href="/furnish">Furnish</Link> — register as a furnisher and submit a position
         </li>
         <li>

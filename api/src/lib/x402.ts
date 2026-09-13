@@ -104,7 +104,26 @@ async function getHttpServer(): Promise<x402HTTPResourceServer> {
 // run after requireBearerAuth (needs c.get("furnisherId") for pricing) and after the consent/
 // standing checks that precede it in the short-circuit chain, per architecture.md: never charge
 // for a request that was going to be rejected anyway.
+// Settling a real x402 payment needs a funded Hedera testnet account and a reachable
+// facilitator. Without them this middleware correctly refuses every pull with 503, which is the
+// right production behavior and also makes the local demo impossible to finish. This escape
+// hatch exists for local rehearsal only: it is OFF unless explicitly switched on, announces
+// itself on every request, and is reported as a bypass by GET /health/ready so it can never be
+// mistaken for a working payment integration -- least of all by us, in a demo video.
+export function x402Bypassed(): boolean {
+  return process.env.HARDPULL_X402_MODE === "disabled";
+}
+
 export const requireX402Payment: MiddlewareHandler = async (c, next) => {
+  if (x402Bypassed()) {
+    console.warn(
+      "[x402] BYPASSED (HARDPULL_X402_MODE=disabled) -- this pull is NOT metered and NOT paid for. " +
+        "Local rehearsal only; never run a demo or a deployment in this mode.",
+    );
+    c.header("x-hardpull-x402-bypassed", "true");
+    return next();
+  }
+
   let server: x402HTTPResourceServer;
   try {
     server = await getHttpServer();

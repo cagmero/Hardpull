@@ -27,6 +27,8 @@ export default function LenderA() {
   const [subjectId, setSubjectId] = useState("");
   const [principal, setPrincipal] = useState("50000");
   const [log, setLog] = useState<string[]>([]);
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -40,8 +42,9 @@ export default function LenderA() {
   async function ensureRegistered(): Promise<Credentials> {
     if (credentials) return credentials;
 
-    appendLog("Registering Lender A as a furnisher...");
-    const operatorAddress = "0x" + crypto.getRandomValues(new Uint8Array(20)).reduce((s, b) => s + b.toString(16).padStart(2, "0"), "");
+    appendLog("Registering Lender A as a furnisher…");
+    const operatorAddress =
+      "0x" + crypto.getRandomValues(new Uint8Array(20)).reduce((s, b) => s + b.toString(16).padStart(2, "0"), "");
     const identityKey = generateKeyPair();
     const { status, body } = await apiFetch("/v1/furnishers", {
       method: "POST",
@@ -59,6 +62,8 @@ export default function LenderA() {
 
   async function originateLoan() {
     setLog([]);
+    setDone(false);
+    setRunning(true);
     try {
       if (!WORKFLOW_PUBLIC_KEY_HEX) {
         appendLog(
@@ -71,22 +76,31 @@ export default function LenderA() {
 
       const creds = await ensureRegistered();
 
-      appendLog("Requesting access token...");
+      appendLog("Requesting access token…");
       const tokenRes = await apiFetch("/oauth/token", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ grant_type: "client_credentials", client_id: creds.clientId, client_secret: creds.clientSecret }),
+        body: JSON.stringify({
+          grant_type: "client_credentials",
+          client_id: creds.clientId,
+          client_secret: creds.clientSecret,
+        }),
       });
       const token = (tokenRes.body as { access_token: string }).access_token;
 
-      appendLog(`Sealing loan record for subject ${subjectId}...`);
-      const plaintext = JSON.stringify({ principal, currency: "USD", originatedAt: new Date().toISOString(), status: "ACTIVE" });
+      appendLog(`Sealing loan record for subject ${subjectId}…`);
+      const plaintext = JSON.stringify({
+        principal,
+        currency: "USD",
+        originatedAt: new Date().toISOString(),
+        status: "ACTIVE",
+      });
       const sealed = sealAnonymous(new TextEncoder().encode(plaintext), fromHex(WORKFLOW_PUBLIC_KEY_HEX));
       const sealedBoxHex = toHex(sealed);
       const requestBody = JSON.stringify({ subjectId, sealedBoxHex });
       const signature = await hmacHex(requestBody, creds.hmacSecret);
 
-      appendLog("Furnishing position to Hardpull (commitment written onchain)...");
+      appendLog("Furnishing position to Hardpull (commitment written onchain)…");
       const { status, body } = await apiFetch("/v1/furnish", {
         method: "POST",
         headers: {
@@ -101,33 +115,111 @@ export default function LenderA() {
       if (status === 201) {
         appendLog(`Loan originated. Commitment: ${(body as { commitment: string }).commitment}`);
         appendLog(`Onchain tx: ${(body as { txHash: string }).txHash}`);
+        setDone(true);
       } else {
         appendLog(`Failed: ${JSON.stringify(body)}`);
       }
     } catch (err) {
       appendLog(`Error: ${(err as Error).message}`);
+    } finally {
+      setRunning(false);
     }
   }
 
   return (
-    <main style={{ maxWidth: 640, margin: "0 auto", padding: 24, fontFamily: "system-ui", background: "#eef6ff", minHeight: "100vh" }}>
-      <h1 style={{ color: "#1d4ed8" }}>🏦 Lender A</h1>
-      <p>First half of the stacking scenario: originate a loan to a demo subject.</p>
+    <main className="min-h-dvh bg-aurora">
+      <div className="mx-auto max-w-2xl px-6 py-16">
+        <header className="stagger">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-background/70 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+            Originating lender
+          </span>
+          <h1 className="mt-5 text-4xl font-semibold tracking-tight">Lender A</h1>
+          <p className="mt-3 leading-relaxed text-muted-foreground">
+            The first half of the stacking scenario. This originates a loan and furnishes it to
+            Hardpull — sealed in this browser, so neither Hardpull nor any other lender ever sees
+            the amount.
+          </p>
+        </header>
 
-      <label>
-        Subject ID
-        <input value={subjectId} onChange={(e) => setSubjectId(e.target.value)} style={{ width: "100%" }} />
-      </label>
-      <label>
-        Principal
-        <input value={principal} onChange={(e) => setPrincipal(e.target.value)} />
-      </label>
+        <section className="mt-10 rounded-lg border border-border bg-card p-6 shadow-subtle">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void originateLoan();
+            }}
+            className="space-y-5"
+          >
+            <div className="space-y-2">
+              <label htmlFor="subject" className="block text-sm font-medium">
+                Subject ID
+              </label>
+              <input
+                id="subject"
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                placeholder="0x…"
+                className="h-11 w-full rounded-md border border-input bg-background px-3.5 font-mono text-[0.8125rem] transition-[border-color,box-shadow] duration-[120ms] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              />
+            </div>
 
-      <button onClick={originateLoan} disabled={!subjectId} style={{ marginTop: 12 }}>
-        Originate loan
-      </button>
+            <div className="space-y-2">
+              <label htmlFor="principal" className="block text-sm font-medium">
+                Principal
+              </label>
+              <input
+                id="principal"
+                inputMode="numeric"
+                value={principal}
+                onChange={(e) => setPrincipal(e.target.value)}
+                className="h-11 w-full rounded-md border border-input bg-background px-3.5 font-mono text-sm tabular transition-[border-color,box-shadow] duration-[120ms] ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              />
+            </div>
 
-      <pre style={{ background: "#fff", padding: 12, marginTop: 16, whiteSpace: "pre-wrap" }}>{log.join("\n")}</pre>
+            <button
+              type="submit"
+              disabled={!subjectId || running}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-medium text-primary-foreground shadow-subtle transition-[filter] duration-[120ms] ease-out hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50"
+            >
+              {running && (
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
+                  <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              )}
+              {running ? "Originating…" : "Originate loan"}
+            </button>
+          </form>
+        </section>
+
+        {log.length > 0 && (
+          <section className="mt-6 animate-rise" aria-live="polite">
+            <div
+              className={
+                "overflow-hidden rounded-lg border shadow-subtle " +
+                (done ? "border-clear/30" : "border-border")
+              }
+            >
+              <div className="flex items-center justify-between border-b border-border bg-muted/40 px-4 py-2.5">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Trace
+                </span>
+                {done && <span className="text-xs font-semibold text-clear">Originated</span>}
+              </div>
+              <ol className="divide-y divide-border">
+                {log.map((line, i) => (
+                  <li key={i} className="flex gap-3 bg-card px-4 py-3 font-mono text-xs leading-relaxed">
+                    <span className="shrink-0 tabular text-muted-foreground">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="break-all">{line}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+        )}
+      </div>
     </main>
   );
 }

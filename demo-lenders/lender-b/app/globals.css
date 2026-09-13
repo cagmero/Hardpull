@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Same token vocabulary as the Hardpull console, with one accent hue changed. The two demo
+ * lenders sit side by side on screen during the demo, so they have to be distinguishable at a
+ * glance without looking like two different products.
+ */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 4%;
+    --card: 0 0% 100%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 0 72% 47%;
+    --primary: 0 72% 47%;
+    --primary-foreground: 0 0% 100%;
+    --clear: 152 58% 34%;
+    --warning: 32 90% 42%;
+    --critical: 0 72% 47%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 12% 5%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 8%;
+    --muted: 240 6% 13%;
+    --muted-foreground: 240 5% 65%;
+    --border: 240 6% 17%;
+    --input: 240 6% 17%;
+    --ring: 0 78% 62%;
+    --primary: 0 78% 62%;
+    --primary-foreground: 240 12% 5%;
+    --clear: 152 52% 46%;
+    --warning: 38 92% 55%;
+    --critical: 0 78% 62%;
+  }
+
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+@layer utilities {
+  .bg-aurora {
+    background-image:
+      radial-gradient(50rem 26rem at 12% -12%, hsl(var(--primary) / 0.18), transparent 60%),
+      radial-gradient(38rem 24rem at 95% 0%, hsl(var(--primary) / 0.10), transparent 55%);
+  }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translate3d(0, 8px, 0); }
+    to { opacity: 1; transform: none; }
+  }
+  .animate-rise { animation: rise 320ms cubic-bezier(0, 0, 0.2, 1) both; }
+
+  .stagger > * { animation: rise 280ms cubic-bezier(0, 0, 0.2, 1) both; }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .stagger > *:nth-child(n + 5) { animation-delay: 160ms; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

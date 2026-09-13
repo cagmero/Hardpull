@@ -4,10 +4,12 @@ import { keccak256, toBytes, namehash, type Address } from "viem";
 import { z } from "zod";
 import { pool } from "../db/pool.js";
 import { generateClientCredentials, hashClientSecret } from "../lib/credentials.js";
-import { getWalletClient } from "../chain/clients.js";
-import { deployments } from "../chain/clients.js";
-import { pullAllowanceOnChain, freshRecordCountOnChain, isFurnisherActive } from "../chain/contracts.js";
-import FurnisherRegistryAbi from "../chain/abis/FurnisherRegistry.json" with { type: "json" };
+import {
+  pullAllowanceOnChain,
+  freshRecordCountOnChain,
+  isFurnisherActive,
+  registerFurnisherOnChain,
+} from "../chain/contracts.js";
 
 export const furnishers = new Hono();
 
@@ -33,15 +35,15 @@ furnishers.post("/", async (c) => {
 
   let txHash: string;
   try {
-    const wallet = getWalletClient();
-    const { FurnisherRegistry } = deployments();
-    txHash = await wallet.writeContract({
-      address: FurnisherRegistry,
-      abi: FurnisherRegistryAbi,
-      functionName: "register",
-      args: [furnisherId, ensNode, publicKey, operatorAddress],
-      account: wallet.account!,
-    });
+    // Waits for the receipt and checks it succeeded. Returning 201 before the registration is
+    // mined makes the caller's very next furnish revert FurnisherNotActive() -- invisible on
+    // Anvil, immediate on Sepolia.
+    txHash = await registerFurnisherOnChain(
+      furnisherId,
+      ensNode,
+      publicKey,
+      operatorAddress as `0x${string}`,
+    );
   } catch (err) {
     return c.json(
       { error: "CHAIN_UNAVAILABLE", message: `FurnisherRegistry write failed: ${(err as Error).message}` },

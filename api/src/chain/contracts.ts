@@ -6,6 +6,48 @@ import ExposureCommitmentsAbi from "./abis/ExposureCommitments.json" with { type
 import ReciprocityLedgerAbi from "./abis/ReciprocityLedger.json" with { type: "json" };
 import VerdictAttestationsAbi from "./abis/VerdictAttestations.json" with { type: "json" };
 
+/**
+ * Waits for a transaction and throws if it reverted.
+ *
+ * Two separate mistakes this exists to prevent, both of which are invisible on a local Anvil
+ * node and both of which broke immediately on Sepolia:
+ *
+ *  1. Not waiting at all. Anvil auto-mines, so a write is effective the instant it returns;
+ *     Sepolia takes ~12s, and the very next call reads pre-transaction state. That is how
+ *     furnisher registration came back 201 and the following furnish reverted
+ *     FurnisherNotActive() -- the registration simply had not been mined yet.
+ *  2. Waiting but not checking `receipt.status`. viem resolves the receipt for a REVERTED
+ *     transaction too, so `await waitForTransactionReceipt(...)` alone treats a revert as a
+ *     success and the failure surfaces somewhere else entirely, later.
+ */
+async function confirm(txHash: Hash, what: string): Promise<Hash> {
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  if (receipt.status !== "success") {
+    throw new Error(`${what} reverted onchain (tx ${txHash})`);
+  }
+  return txHash;
+}
+
+export async function registerFurnisherOnChain(
+  furnisherId: `0x${string}`,
+  ensNode: `0x${string}`,
+  publicKey: `0x${string}`,
+  operator: Address,
+): Promise<Hash> {
+  const wallet_ = getWalletClient();
+  const { FurnisherRegistry } = deployments();
+
+  const txHash = await wallet_.writeContract({
+    address: FurnisherRegistry,
+    abi: FurnisherRegistryAbi,
+    functionName: "register",
+    args: [furnisherId, ensNode, publicKey, operator],
+    account: wallet_.account!,
+    chain: wallet_.chain,
+  });
+  return confirm(txHash, "FurnisherRegistry.register");
+}
+
 export async function registerSubjectOnChain(nullifierHash: `0x${string}`, wallet: Address): Promise<{ subjectId: `0x${string}`; txHash: Hash }> {
   const wallet_ = getWalletClient();
   const { SubjectRegistry } = deployments();
@@ -16,7 +58,7 @@ export async function registerSubjectOnChain(nullifierHash: `0x${string}`, walle
     functionName: "registerSubject",
     args: [nullifierHash, wallet],
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await confirm(txHash, "SubjectRegistry.registerSubject");
 
   const subjectId = (await publicClient.readContract({
     address: SubjectRegistry,
@@ -53,7 +95,7 @@ export async function writeCommitmentOnChain(
     functionName: "writeCommitment",
     args: [subjectId, furnisherId, recordId, commitment],
   });
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await confirm(txHash, "ExposureCommitments.writeCommitment");
 
   const [, version] = (await publicClient.readContract({
     address: ExposureCommitments,
@@ -62,7 +104,7 @@ export async function writeCommitmentOnChain(
     args: [subjectId, furnisherId, recordId],
   })) as [string, bigint, bigint];
 
-  return { version, txHash: receipt.transactionHash };
+  return { version, txHash };
 }
 
 export async function pullAllowanceOnChain(furnisherId: `0x${string}`): Promise<bigint> {
@@ -125,6 +167,5 @@ export async function attestVerdictOnChain(
     functionName: "attest",
     args: [inquiryId, verdictHash, signature],
   });
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
-  return txHash;
+  return confirm(txHash, "VerdictAttestations.attest");
 }

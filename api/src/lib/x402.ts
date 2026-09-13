@@ -39,6 +39,9 @@ let initError: Error | undefined;
 // Differential pricing by reciprocity standing (spec.md #6.7.2, docs/plan.md T-061): a
 // furnisher with fresh standing pays less per pull. Falls back to the base price if standing
 // can't be read onchain -- pricing degrades gracefully, payment verification never does.
+// Denominated in USD and settled in Hedera testnet USDC (0.0.429274) by the scheme's default
+// asset table. The payer's Hedera account must be associated with that token and hold a
+// balance -- Circle's faucet at faucet.circle.com mints it for Hedera Testnet.
 const BASE_PRICE_USD = "$0.05";
 const FURNISHER_PRICE_USD = "$0.01";
 
@@ -81,13 +84,15 @@ async function getHttpServer(): Promise<x402HTTPResourceServer> {
     const facilitatorClient = new HTTPFacilitatorClient({
       url: process.env.X402_FACILITATOR_URL ?? "https://x402.org/facilitator",
     });
+    // No defaultAssets override on purpose. @x402/hedera already ships the right default for
+    // each network -- USDC 0.0.429274 (6 decimals) on testnet -- and its defaultMoneyConversion
+    // explicitly REJECTS the native-HBAR asset id "0.0.0", which is what this code used to
+    // pass. The result was that a $-denominated price could not be converted at all and every
+    // paid pull died with "Default Hedera asset must be an HTS fungible token ID" while
+    // building the 402 challenge. Money strings need an HTS fungible token; HBAR is not one.
     const resourceServer = new x402ResourceServer(facilitatorClient).register(
       "hedera:*",
-      new ExactHederaScheme({
-        defaultAssets: {
-          "hedera:testnet": { asset: "0.0.0", decimals: 8 }, // HBAR, tinybar units
-        },
-      }),
+      new ExactHederaScheme(),
     );
 
     const server = new x402HTTPResourceServer(resourceServer, buildRoutes(payTo));

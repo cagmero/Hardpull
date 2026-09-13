@@ -29,6 +29,9 @@ cre/*.wasm
 subgraph/generated/
 subgraph/build/
 
+# SDK codegen (regenerated from api/openapi.yaml -- see sdk-node/package.json's codegen script)
+sdk-node/src/generated/
+
 # Logs
 *.log
 npm-debug.log*

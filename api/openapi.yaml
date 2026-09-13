@@ -1,0 +1,558 @@
+openapi: 3.1.0
+info:
+  title: Hardpull API
+  version: 0.1.0
+  description: >
+    Confidential exposure registry for onchain credit. See docs/spec.md and docs/architecture.md
+    for the full protocol description; this document describes the HTTP surface only.
+servers:
+  - url: http://localhost:3001
+    description: Local dev
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /oauth/token:
+    post:
+      summary: OAuth2 client-credentials token exchange
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grant_type, client_id, client_secret]
+              properties:
+                grant_type:
+                  type: string
+                  enum: [client_credentials]
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+      responses:
+        "200":
+          description: Access token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessToken"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /v1/furnishers:
+    post:
+      summary: Register as a furnisher
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [operatorAddress, publicKeyHex]
+              properties:
+                operatorAddress:
+                  type: string
+                  description: EVM address, 20 bytes hex
+                ensSubname:
+                  type: string
+                publicKeyHex:
+                  type: string
+                  description: 32-byte X25519 public key, hex
+      responses:
+        "201":
+          description: Furnisher registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FurnisherCredentials"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /v1/furnishers/{furnisherId}/standing:
+    get:
+      summary: Reciprocity standing (public, unauthenticated)
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/FurnisherId"
+      responses:
+        "200":
+          description: Standing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Standing"
+        "400":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /v1/subjects:
+    post:
+      summary: Bind a wallet to a subjectId via World ID
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wallet, proof]
+              properties:
+                wallet:
+                  type: string
+                proof:
+                  $ref: "#/components/schemas/WorldIdProof"
+      responses:
+        "201":
+          description: Subject registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subjectId:
+                    type: string
+                  wallet:
+                    type: string
+                  txHash:
+                    type: string
+        "400":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /v1/subjects/{subjectId}/inquiries:
+    get:
+      summary: Borrower-visible inquiry history
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/SubjectId"
+      responses:
+        "200":
+          description: Inquiry history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subjectId:
+                    type: string
+                  inquiries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/InquirySummary"
+
+  /v1/furnish:
+    post:
+      summary: Furnish a position (HMAC-signed, bearer-authenticated)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subjectId, sealedBoxHex]
+              properties:
+                subjectId:
+                  type: string
+                sealedBoxHex:
+                  type: string
+      responses:
+        "201":
+          description: Commitment written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FurnishResult"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /v1/furnish/{recordId}:
+    delete:
+      summary: Status transition (REPAID/DEFAULTED/CLOSED), a new version
+      parameters:
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, sealedBoxHex]
+              properties:
+                status:
+                  type: string
+                  enum: [REPAID, DEFAULTED, CLOSED]
+                sealedBoxHex:
+                  type: string
+      responses:
+        "200":
+          description: Status updated
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /v1/consent:
+    post:
+      summary: Grant a puller time-boxed read access (subject wallet-signature auth)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentGrantRequest"
+      responses:
+        "201":
+          description: Grant created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentGrantResult"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /v1/consent/{grantId}:
+    delete:
+      summary: Revoke a consent grant (subject wallet-signature auth)
+      security: []
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subjectId, timestamp, signature]
+              properties:
+                subjectId:
+                  type: string
+                timestamp:
+                  type: integer
+                signature:
+                  type: string
+      responses:
+        "200":
+          description: Revoked
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /v1/pull:
+    post:
+      summary: The core endpoint -- consent, standing, x402 payment, then a verdict
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PullRequest"
+      responses:
+        "200":
+          description: Verdict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Verdict"
+        "402":
+          description: x402 payment required, or reciprocity standing exhausted
+        "403":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+
+  /v1/pull/{inquiryId}:
+    get:
+      summary: Verdict retrieval with attestation
+      security: []
+      parameters:
+        - name: inquiryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Verdict record
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /v1/webhooks:
+    post:
+      summary: Subscribe to webhook events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/WebhookEvent"
+      responses:
+        "201":
+          description: Subscribed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookSubscription"
+
+  /v1/webhooks/{id}:
+    delete:
+      summary: Unsubscribe
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Unsubscribed
+        "404":
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    FurnisherId:
+      name: furnisherId
+      in: path
+      required: true
+      schema:
+        type: string
+    SubjectId:
+      name: subjectId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+    AccessToken:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+    FurnisherCredentials:
+      type: object
+      properties:
+        furnisherId:
+          type: string
+        clientId:
+          type: string
+        clientSecret:
+          type: string
+        hmacSecret:
+          type: string
+        ensNode:
+          type: string
+        txHash:
+          type: string
+    Standing:
+      type: object
+      properties:
+        furnisherId:
+          type: string
+        active:
+          type: boolean
+        pullAllowance:
+          type: string
+        freshRecordCount:
+          type: string
+    WorldIdProof:
+      type: object
+      required: [merkle_root, nullifier_hash, proof, verification_level]
+      properties:
+        merkle_root:
+          type: string
+        nullifier_hash:
+          type: string
+        proof:
+          type: string
+        verification_level:
+          type: string
+          enum: [orb, device]
+    InquirySummary:
+      type: object
+      properties:
+        inquiry_id:
+          type: string
+        puller_hash:
+          type: string
+        verdict:
+          $ref: "#/components/schemas/VerdictLevel"
+        exposure_bucket:
+          type: string
+        occurred_at:
+          type: string
+          format: date-time
+    FurnishResult:
+      type: object
+      properties:
+        recordId:
+          type: string
+        subjectId:
+          type: string
+        commitment:
+          type: string
+        version:
+          type: integer
+        txHash:
+          type: string
+    ConsentGrantRequest:
+      type: object
+      required: [subjectId, pullerId, expiresAt, maxPulls, timestamp, signature]
+      properties:
+        subjectId:
+          type: string
+        pullerId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        maxPulls:
+          type: integer
+        purpose:
+          type: string
+        timestamp:
+          type: integer
+          description: Unix ms, must be signed over along with the other fields
+        signature:
+          type: string
+          description: Subject wallet's signature over the canonical grant message (see @hardpull/types buildConsentGrantMessage)
+    ConsentGrantResult:
+      type: object
+      properties:
+        grantId:
+          type: string
+        subjectId:
+          type: string
+        pullerId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        maxPulls:
+          type: integer
+        eacTxHash:
+          type: string
+          description: Present only if ENSv2 Enhanced Access Control is configured (see api/README.md)
+    PullRequest:
+      type: object
+      required: [subjectId, proposedPrincipal, currency, consentToken]
+      properties:
+        subjectId:
+          type: string
+        proposedPrincipal:
+          type: string
+        currency:
+          type: string
+        consentToken:
+          type: string
+    VerdictLevel:
+      type: string
+      enum: [CLEAR, WARNING, CRITICAL, INSUFFICIENT_DATA]
+    Verdict:
+      type: object
+      properties:
+        verdict:
+          $ref: "#/components/schemas/VerdictLevel"
+        exposureBucket:
+          type: string
+          enum: ["<10k", "10k-50k", "50k-250k", "250k-1M", ">1M"]
+        originationVelocity48h:
+          type: integer
+        inquiryVelocity7d:
+          type: integer
+        distinctFurnishers:
+          type: integer
+        stackingFlags:
+          type: array
+          items:
+            type: string
+        computedAt:
+          type: string
+          format: date-time
+        attestation:
+          type: string
+    WebhookEvent:
+      type: string
+      enum:
+        [
+          "stacking.detected",
+          "consent.granted",
+          "consent.revoked",
+          "subject.default_reported",
+          "standing.changed",
+        ]
+    WebhookSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/WebhookEvent"
+        secret:
+          type: string

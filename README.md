@@ -25,7 +25,7 @@ separate repo.
 | [`mcp/`](./mcp) | Subgraph MCP server + SKILL | TypeScript, MCP SDK |
 | [`console/`](./console) | Lender console + borrower file viewer | Next.js 15, wagmi, viem, Tailwind |
 | [`demo-lenders/`](./demo-lenders) | Two mock lender apps for the demo video | Next.js |
-| [`sdk-node/`](./sdk-node) | Typed client SDK | TypeScript (hand-written for now; OpenAPI codegen is T-05B) |
+| [`sdk-node/`](./sdk-node) | Typed client SDK | TypeScript, generated from `api/openapi.yaml` |
 | [`packages/types/`](./packages/types) | Shared types + Zod schemas | TypeScript |
 | [`docs/`](./docs) | Spec, architecture, plan, sponsor strategy, decisions | Markdown |
 

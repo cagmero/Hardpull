@@ -2,6 +2,8 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { requestId } from "./middleware/requestId.js";
 import { rateLimit } from "./middleware/rateLimit.js";
+import { ipAllowlist } from "./middleware/ipAllowlist.js";
+import { health } from "./routes/health.js";
 import { oauth } from "./routes/oauth.js";
 import { furnishers } from "./routes/furnishers.js";
 import { subjects } from "./routes/subjects.js";
@@ -14,9 +16,10 @@ import { webhooks } from "./routes/webhooks.js";
 const app = new Hono();
 
 app.use("*", requestId);
+app.use("*", ipAllowlist);
 app.use("*", rateLimit(120, 60));
 
-app.get("/health", (c) => c.json({ status: "ok" }));
+app.route("/", health);
 
 app.route("/oauth", oauth);
 app.route("/v1/furnishers", furnishers);

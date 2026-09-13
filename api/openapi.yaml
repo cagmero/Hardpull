@@ -27,6 +27,31 @@ paths:
                     type: string
                     example: ok
 
+  /health/ready:
+    get:
+      summary: Dependency readiness
+      description: >-
+        Reports which external integrations are configured and reachable right now. Hardpull
+        starts without any of its optional dependencies and fails with a specific typed error at
+        exactly the boundary that needs one, so this endpoint is how a caller discovers what the
+        service can currently do. Returns 503 when an essential dependency (Postgres, Redis) is
+        unreachable; a missing CRE workflow or Hedera account is a documented degraded state,
+        not an outage.
+      security: []
+      responses:
+        "200":
+          description: Essential dependencies reachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+        "503":
+          description: An essential dependency is unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+
   /oauth/token:
     post:
       summary: OAuth2 client-credentials token exchange
@@ -495,6 +520,49 @@ components:
         eacTxHash:
           type: string
           description: Present only if ENSv2 Enhanced Access Control is configured (see api/README.md)
+    DependencyProbe:
+      type: object
+      properties:
+        configured:
+          type: boolean
+          description: Whether the environment variables this integration needs are present.
+        ok:
+          type: boolean
+          description: Whether it was actually reached just now. Absent when not probed.
+        detail:
+          type: string
+          description: What is wired up, or precisely what is missing and what that disables.
+    Readiness:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ready, degraded]
+        dependencies:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/DependencyProbe"
+        ipAllowlist:
+          type: object
+          properties:
+            enforced:
+              type: boolean
+            entries:
+              type: integer
+            trustProxy:
+              type: boolean
+        pullChain:
+          type: object
+          description: What each gate of POST /v1/pull will do right now, in the order it runs.
+          properties:
+            consent:
+              type: string
+            standing:
+              type: string
+            payment:
+              type: string
+            compute:
+              type: string
     PullRequest:
       type: object
       required: [subjectId, proposedPrincipal, currency, consentToken]
@@ -507,6 +575,14 @@ components:
           type: string
         consentToken:
           type: string
+          format: uuid
+          description: >-
+            The grantId returned by POST /v1/consent, which the borrower passes to this lender
+            out of band. It must name a live, unexpired, unrevoked, unexhausted grant for this
+            exact subject AND this exact authenticated puller; anything else is rejected 403
+            CONSENT_MISSING before any compute or payment occurs. A grant issued to a different
+            lender cannot be reused.
+          example: 3f2504e0-4f89-11d3-9a0c-0305e82c3301
     VerdictLevel:
       type: string
       enum: [CLEAR, WARNING, CRITICAL, INSUFFICIENT_DATA]

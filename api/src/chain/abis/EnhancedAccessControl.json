@@ -1,0 +1,52 @@
+[
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "resource", "type": "uint256" },
+      { "internalType": "uint256", "name": "roleBitmap", "type": "uint256" },
+      { "internalType": "address", "name": "account", "type": "address" }
+    ],
+    "name": "grantRoles",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "resource", "type": "uint256" },
+      { "internalType": "uint256", "name": "roleBitmap", "type": "uint256" },
+      { "internalType": "address", "name": "account", "type": "address" }
+    ],
+    "name": "revokeRoles",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "resource", "type": "uint256" },
+      { "internalType": "uint256", "name": "roleBitmap", "type": "uint256" },
+      { "internalType": "address", "name": "account", "type": "address" }
+    ],
+    "name": "hasRoles",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "resource", "type": "uint256" },
+      { "internalType": "address", "name": "account", "type": "address" }
+    ],
+    "name": "roles",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "ROOT_RESOURCE",
+    "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

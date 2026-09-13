@@ -4,15 +4,18 @@ import { pool } from "../db/pool.js";
 import { dispatchWebhook } from "../lib/webhooks.js";
 import { buildConsentGrantMessage, buildConsentRevokeMessage } from "@hardpull/types";
 import { verifySubjectSignature, SubjectAuthError } from "../lib/subjectAuth.js";
+import { grantConsentRoleOnChain, revokeConsentRoleOnChain, isEacConfigured } from "../lib/ensEac.js";
 
 export const consent = new Hono();
 
-// spec.md #6.3 describes consent as an ENSv2 Enhanced Access Control grant. That integration
-// (T-071) is built separately against the real ENSv2 contracts and is out of scope for this
-// route file -- EAC's exact interface wasn't something we could verify against real deployed
-// contracts the way SubjectRegistry/FurnisherRegistry were. Postgres is the source of truth for
-// v1; T-071 adds an onchain mirror write alongside this once that integration lands, the same
-// pattern subjects.ts and furnish.ts already use for their contracts.
+// spec.md #6.3 describes consent as an ENSv2 Enhanced Access Control grant. Postgres is the
+// source of truth (fast reads, and the actual gate /v1/pull checks); the EAC write below is a
+// best-effort onchain mirror, same pattern as subjects.ts/furnish.ts's other contract calls --
+// except this one is a documented no-op until ENS_EAC_REGISTRY_ADDRESS is set AND a Hardpull
+// subname has actually been minted for the subject (see lib/ensEac.ts for exactly why: EAC's
+// grantRoles reverts unless the caller already admins the target resource, which only happens
+// once something has been registered against it). Never let this block or fail the request --
+// Postgres already recorded the grant by the time this runs.
 //
 // Auth here is the subject's wallet signature (see lib/subjectAuth.ts), NOT a furnisher bearer
 // token -- granting consent is something the borrower does, not the lender.
@@ -49,9 +52,25 @@ consent.post("/", async (c) => {
     [subjectId, pullerId, expiresAt, maxPulls, purpose ?? null],
   );
 
+  let eacTxHash: string | undefined;
+  if (isEacConfigured()) {
+    try {
+      const operator = await pool.query<{ operator_address: string }>(
+        "select operator_address from furnishers where furnisher_id = $1",
+        [pullerId],
+      );
+      const operatorAddress = operator.rows[0]?.operator_address;
+      if (operatorAddress) {
+        eacTxHash = await grantConsentRoleOnChain(subjectId as `0x${string}`, operatorAddress as `0x${string}`);
+      }
+    } catch (err) {
+      console.error("ENSv2 EAC grantRoles failed (Postgres grant still stands)", err);
+    }
+  }
+
   dispatchWebhook(pullerId, "consent.granted", { subjectId, pullerId, expiresAt, maxPulls });
 
-  return c.json({ grantId: result.rows[0].id, subjectId, pullerId, expiresAt, maxPulls }, 201);
+  return c.json({ grantId: result.rows[0].id, subjectId, pullerId, expiresAt, maxPulls, eacTxHash }, 201);
 });
 
 const revokeSchema = z.object({
@@ -85,6 +104,21 @@ consent.delete("/:grantId", async (c) => {
   const grant = result.rows[0];
   if (!grant) {
     return c.json({ error: "GRANT_NOT_FOUND", message: "No active grant with this id for this subject" }, 404);
+  }
+
+  if (isEacConfigured()) {
+    try {
+      const operator = await pool.query<{ operator_address: string }>(
+        "select operator_address from furnishers where furnisher_id = $1",
+        [grant.puller_id],
+      );
+      const operatorAddress = operator.rows[0]?.operator_address;
+      if (operatorAddress) {
+        await revokeConsentRoleOnChain(grant.subject_id as `0x${string}`, operatorAddress as `0x${string}`);
+      }
+    } catch (err) {
+      console.error("ENSv2 EAC revokeRoles failed (Postgres revocation still stands)", err);
+    }
   }
 
   dispatchWebhook(grant.puller_id, "consent.revoked", { subjectId: grant.subject_id, pullerId: grant.puller_id });

@@ -72,9 +72,19 @@ schedules a retry with an incremented `attempt_count` when the receiver is unrea
 - **CRE workflow request signing** (`src/lib/creClient.ts`): CRE HTTP triggers authenticate
   callers via signed requests against the workflow's `AuthorizedKeys`. Nothing to sign against or
   verify locally without a deployed workflow — see `cre/README.md`.
+- **ENSv2 Enhanced Access Control** (`src/lib/ensEac.ts`): the `grantRoles`/`revokeRoles`/
+  `hasRoles` calls are real, verified against the actual `IEnhancedAccessControl.sol` interface
+  on `github.com/ensdomains/contracts-v2` (not guessed), and wired into `consent.ts` as a
+  best-effort onchain mirror alongside the Postgres grant. But `grantRoles` reverts unless the
+  caller already admins the target resource, and a resource only gets an admin once something is
+  *registered* against it — so this needs `hardpull.eth` (or an equivalent parent name) actually
+  registered on Sepolia, and a subname minted per subject, before `ENS_EAC_REGISTRY_ADDRESS`
+  does anything beyond skip gracefully. Same category of external dependency as a funded Hedera
+  account or a CRE login — confirmed unconfigured behavior doesn't regress anything by testing
+  the consent grant flow live with it unset.
 
 x402 settlement ordering (it was already correct — see `src/routes/pull.ts`'s comment),
 webhook retry durability (now a persisted queue, `src/scripts/deliver-webhooks.ts`), and
 reconciliation drift math (now an exact comparison via `freshRecordCount`/`versionCount`, not a
 proxy) were all previously listed here and have since been addressed or corrected — see
-`docs/DECISIONS.md`'s entry on this pass. ENSv2 Enhanced Access Control is still pending.
+`docs/DECISIONS.md`'s entry on this pass.

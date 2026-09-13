@@ -1,6 +1,7 @@
-// This file, main.go, and signing.go compile only to WASM (GOOS=wasip1 GOARCH=wasm) -- that is
-// the only target a CRE workflow binary runs as. Business logic that doesn't need the CRE
-// runtime lives in workflow/, which is plain Go and unit-testable on any platform.
+// Only main.go is WASM-only (GOOS=wasip1 GOARCH=wasm), which is the single target a CRE
+// workflow binary runs as. This file, workflow.go and signing.go build on the host as well so
+// the handler itself is unit-testable via cre/testutils. Business logic that needs no CRE
+// runtime at all lives in ../workflow, which is plain Go and testable on any platform.
 package main
 
 import (
@@ -93,9 +94,37 @@ func (t thresholdsWire) toThresholds() workflow.Thresholds {
 
 // signedVerdict is the HTTP trigger's response body: the Verdict plus the CRE workflow's
 // signature over it, for VerdictAttestations (docs/architecture.md #2.2 OUTPUT).
+//
+// Deliberately FLAT, with every field spelled out, rather than embedding workflow.Verdict.
+// Running `cre workflow simulate` showed the CRE runtime serializes a handler's return value
+// using Go field names and ignores `json` tags entirely -- an embedded struct came back as a
+// nested {"Verdict": {"Verdict": "CRITICAL", ...}} object rather than the flat camelCase body
+// api/src/lib/creClient.ts expects. Flattening removes the nesting ambiguity; creClient.ts
+// normalizes the field casing on its side, since only a live gateway can settle which casing
+// actually goes over the wire.
 type signedVerdict struct {
-	workflow.Verdict
-	Attestation string `json:"attestation"`
+	Verdict                workflow.VerdictLevel `json:"verdict"`
+	ExposureBucket         string                `json:"exposureBucket"`
+	OriginationVelocity48h int                   `json:"originationVelocity48h"`
+	InquiryVelocity7d      int                   `json:"inquiryVelocity7d"`
+	DistinctFurnishers     int                   `json:"distinctFurnishers"`
+	StackingFlags          []string              `json:"stackingFlags"`
+	ComputedAt             string                `json:"computedAt"`
+	Attestation            string                `json:"attestation"`
+
+}
+
+func newSignedVerdict(v workflow.Verdict, attestation string) *signedVerdict {
+	return &signedVerdict{
+		Verdict:                v.Verdict,
+		ExposureBucket:         v.ExposureBucket,
+		OriginationVelocity48h: v.OriginationVelocity48h,
+		InquiryVelocity7d:      v.InquiryVelocity7d,
+		DistinctFurnishers:     v.DistinctFurnishers,
+		StackingFlags:          v.StackingFlags,
+		ComputedAt:             v.ComputedAt,
+		Attestation:            attestation,
+	}
 }
 
 func decodeHexKey32(s string) (*[32]byte, error) {

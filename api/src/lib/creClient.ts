@@ -30,6 +30,13 @@ export interface CrePullRequest {
 
 export interface SignedVerdict extends Verdict {
   attestation: string;
+  /**
+   * Hex of the exact bytes `attestation` signs (the workflow's canonical verdict JSON).
+   * VerdictAttestations.sol verifies ecrecover over keccak256 of these bytes, so the API must
+   * hash what the enclave actually signed rather than re-serializing the response itself --
+   * doing the latter is why every attest() call used to revert InvalidSignature().
+   */
+  canonicalPayload?: string;
 }
 
 function workflowSelector(): WorkflowSelector {
@@ -74,8 +81,40 @@ export async function invokeCreWorkflow(request: CrePullRequest): Promise<Signed
   // The fetched reference client (trigger-workflow.ts) returns the parsed body directly without
   // unwrapping a `.result` field, so the exact response envelope isn't confirmed -- handle both
   // a bare verdict body and a JSON-RPC-style {result} / {error} wrapper rather than assume one.
-  const body = (await res.json()) as { result?: SignedVerdict; error?: { message: string } } | SignedVerdict;
-  if ("error" in body && body.error) throw new Error(`CRE workflow error: ${body.error.message}`);
-  if ("result" in body && body.result) return body.result;
-  return body as SignedVerdict;
+  const body = (await res.json()) as Record<string, unknown>;
+  if (body.error) throw new Error(`CRE workflow error: ${(body.error as { message: string }).message}`);
+
+  const payload = (body.result ?? body) as Record<string, unknown>;
+  return normalizeVerdict(payload);
+}
+
+// Running `cre workflow simulate` against cre/hardpull showed the CRE runtime serializes a
+// handler's return value using Go FIELD NAMES and ignores its `json` tags entirely: the verdict
+// comes back as {"Verdict": "CRITICAL", "ExposureBucket": "50k-250k", ...}, not the camelCase
+// this API and its OpenAPI schema use. Rather than guess which casing a live gateway settles
+// on, accept either -- the cost is one lookup per field, and the alternative is a verdict that
+// silently reads as undefined and turns every pull into a false INSUFFICIENT_DATA.
+function normalizeVerdict(payload: Record<string, unknown>): SignedVerdict {
+  const pick = <T>(camel: string, fallback: T): T => {
+    const pascal = camel.charAt(0).toUpperCase() + camel.slice(1);
+    const value = payload[camel] ?? payload[pascal];
+    return (value === undefined ? fallback : value) as T;
+  };
+
+  const verdict = pick<SignedVerdict["verdict"] | undefined>("verdict", undefined);
+  if (!verdict) {
+    throw new Error(`CRE workflow returned no verdict field: ${JSON.stringify(payload).slice(0, 200)}`);
+  }
+
+  return {
+    verdict,
+    exposureBucket: pick("exposureBucket", "" as SignedVerdict["exposureBucket"]),
+    originationVelocity48h: pick("originationVelocity48h", 0),
+    inquiryVelocity7d: pick("inquiryVelocity7d", 0),
+    distinctFurnishers: pick("distinctFurnishers", 0),
+    stackingFlags: pick<SignedVerdict["stackingFlags"]>("stackingFlags", []),
+    computedAt: pick("computedAt", new Date().toISOString()),
+    attestation: pick("attestation", ""),
+    canonicalPayload: pick<string | undefined>("canonicalPayload", undefined),
+  };
 }

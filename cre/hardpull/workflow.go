@@ -131,7 +131,7 @@ func onPullRequest(config *Config, runtime cre.TeeRuntime, payload *httpcap.Payl
 		return nil, fmt.Errorf("signing verdict: %w", err)
 	}
 
-	return &signedVerdict{Verdict: verdict, Attestation: attestation}, nil
+	return newSignedVerdict(verdict, attestation), nil
 }
 
 // InitWorkflow is the required CRE entry point: it registers the confidential HTTP-triggered

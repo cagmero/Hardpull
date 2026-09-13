@@ -8,6 +8,7 @@ import { requireBearerAuth } from "../middleware/auth.js";
 import { requireHmacSignature } from "../middleware/hmac.js";
 import { idempotency } from "../middleware/idempotency.js";
 import { dispatchWebhook } from "../lib/webhooks.js";
+import { notifyStandingChanged } from "../lib/standing.js";
 
 export const furnish = new Hono();
 // HMAC layered over the bearer token (docs/context.md #2): a stolen bearer alone can't forge a
@@ -64,6 +65,8 @@ furnish.post("/", async (c) => {
     [recordId, subjectId, furnisherId, ciphertext, commitment, Number(version), txHash],
   );
 
+  notifyStandingChanged(furnisherId, "record_furnished");
+
   return c.json({ recordId, subjectId, commitment, version: Number(version), txHash }, 201);
 });
 
@@ -115,6 +118,10 @@ furnish.delete("/:recordId", async (c) => {
   if (status === "DEFAULTED") {
     dispatchWebhook(furnisherId, "subject.default_reported", { subjectId: prior.subject_id, recordId });
   }
+
+  // A status transition writes a new commitment version, which refreshes the record's
+  // lastTouchedAt in ReciprocityLedger and so can move standing too.
+  notifyStandingChanged(furnisherId, `status_${status.toLowerCase()}`);
 
   return c.json({ recordId, status, version: Number(version), txHash }, 200);
 });
